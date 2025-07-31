@@ -9,7 +9,7 @@ pages_build_output_dir = "."
 # 注意：Pages 项目的 KV 绑定需要在 Pages 控制台中手动配置
 # 这里的配置主要用于 wrangler dev 命令
 [[kv_namespaces]]
-binding = "KV"
+binding = "LINKS"
 id = "29dfc1dc70d2410f973d4fcc4f0dd1ea"
 
 # 环境变量（将在 Pages 控制台中配置）

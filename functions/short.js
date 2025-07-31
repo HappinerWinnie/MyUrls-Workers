@@ -1,13 +1,22 @@
+// 导入新的工具函数
+import {
+    generateRandomKey,
+    generateUUID,
+    isValidUrl,
+    sanitizeUrl,
+    getCurrentTimestamp
+} from './utils/crypto.js';
+
 export async function onRequest(context) {
     const { request, env } = context;
     const kv = env.LINKS;
 
     // CORS 头部配置
     const corsHeaders = {
-        'Access-Control-Allow-Origin': '*', // 允许任意来源（你可以替换为指定的域名以限制来源）
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', // 允许的方法
-        'Access-Control-Allow-Headers': 'Content-Type', // 允许的自定义头部
-        'Content-Type': 'application/json' // 默认的响应类型
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Content-Type': 'application/json'
     };
 
     // 检查 kv 是否有值
@@ -104,9 +113,21 @@ export async function onRequest(context) {
     });
 
     /**
-     * 处理 URL 存储逻辑
+     * 处理 URL 存储逻辑 - 更新为新的数据结构
      */
     async function handleUrlStorage(kv, longUrl, shortKey) {
+        // 验证和清理URL
+        longUrl = sanitizeUrl(longUrl);
+        if (!isValidUrl(longUrl)) {
+            return new Response(JSON.stringify({
+                Code: 201,
+                Message: "Invalid URL format"
+            }), {
+                status: 200,
+                headers: corsHeaders
+            });
+        }
+
         if (shortKey) {
             const existingValue = await kv.get(shortKey);
             if (existingValue) {
@@ -119,10 +140,35 @@ export async function onRequest(context) {
                 });
             }
         } else {
-            shortKey = generateRandomKey(6);
+            // 生成随机key，确保不重复
+            do {
+                shortKey = generateRandomKey(6);
+            } while (await kv.get(shortKey));
         }
 
-        await kv.put(shortKey, longUrl);
+        // 创建新的数据结构
+        const linkData = {
+            id: generateUUID(),
+            longUrl,
+            shortKey,
+            title: '',
+            description: '',
+            password: null,
+            maxVisits: -1, // 无限制
+            currentVisits: 0,
+            expiresAt: null,
+            accessMode: 'redirect',
+            createdAt: getCurrentTimestamp(),
+            updatedAt: getCurrentTimestamp(),
+            createdBy: 'anonymous',
+            tags: [],
+            isActive: true,
+            totalVisits: 0,
+            lastVisitAt: null,
+            visitHistory: []
+        };
+
+        await kv.put(shortKey, JSON.stringify(linkData));
         const shortUrl = `https://${request.headers.get("host")}/${shortKey}`;
         return new Response(JSON.stringify({
             Code: 1,

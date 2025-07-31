@@ -1,0 +1,45 @@
+{
+  "name": "myurls-workers",
+  "version": "2.0.0",
+  "description": "功能强大的短链接服务，基于 Cloudflare Pages Functions",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node simple-dev-server.js",
+    "dev:full": "node local-dev-server.js",
+    "dev:wrangler": "wrangler pages dev . --kv LINKS --port 8788",
+    "dev:debug": "wrangler pages dev . --kv LINKS --port 8788 --log-level debug",
+    "start": "node simple-dev-server.js",
+    "build": "echo 'No build step required for static site'",
+    "deploy": "wrangler pages deploy .",
+    "kv:create": "wrangler kv:namespace create LINKS",
+    "kv:create-preview": "wrangler kv:namespace create LINKS --preview",
+    "kv:list": "wrangler kv:key list --namespace-id=$KV_NAMESPACE_ID",
+    "test": "echo 'No tests specified'",
+    "lint": "echo 'No linting configured'"
+  },
+  "keywords": [
+    "short-url",
+    "url-shortener",
+    "cloudflare",
+    "workers",
+    "pages",
+    "kv"
+  ],
+  "author": "MyUrls Team",
+  "license": "MIT",
+  "devDependencies": {
+    "wrangler": "^4.26.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kiko923/MyUrls-Workers.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kiko923/MyUrls-Workers/issues"
+  },
+  "homepage": "https://github.com/kiko923/MyUrls-Workers#readme"
+}

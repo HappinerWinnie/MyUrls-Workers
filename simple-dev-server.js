@@ -140,6 +140,7 @@ async function handleAPI(pathname, method, body, res) {
           shortKey: shortKey,
           title: data.title || '',
           description: data.description || '',
+          password: data.password ? await hashPassword(data.password) : null,
           maxVisits: data.maxVisits || -1,
           currentVisits: 0,
           expiresAt: data.expiryDays ? new Date(Date.now() + data.expiryDays * 24 * 60 * 60 * 1000).toISOString() : null,
@@ -197,7 +198,7 @@ async function handleAPI(pathname, method, body, res) {
 }
 
 // 处理短链接访问
-async function handleShortLink(shortKey, res) {
+async function handleShortLink(shortKey, query, res) {
   try {
     const linkDataStr = mockKV.get(shortKey);
     if (!linkDataStr) {
@@ -205,42 +206,64 @@ async function handleShortLink(shortKey, res) {
       res.end('Short link not found');
       return;
     }
-    
+
     const linkData = JSON.parse(linkDataStr);
-    
+
     // 检查是否激活
     if (!linkData.isActive) {
       res.writeHead(403, { 'Content-Type': 'text/plain' });
       res.end('This link has been disabled');
       return;
     }
-    
+
     // 检查是否过期
     if (linkData.expiresAt && new Date(linkData.expiresAt) < new Date()) {
       res.writeHead(403, { 'Content-Type': 'text/plain' });
       res.end('This link has expired');
       return;
     }
-    
+
     // 检查访问次数限制（核心功能）
     if (linkData.maxVisits > 0 && linkData.currentVisits >= linkData.maxVisits) {
       res.writeHead(403, { 'Content-Type': 'text/plain' });
       res.end('This link has reached its visit limit');
       return;
     }
-    
+
+    // 处理密码保护
+    if (linkData.password) {
+      const password = query.password;
+
+      if (!password) {
+        // 返回密码输入页面
+        const passwordPage = getPasswordPage(shortKey);
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(passwordPage);
+        return;
+      }
+
+      // 验证密码
+      const isValid = await verifyPassword(password, linkData.password);
+      if (!isValid) {
+        const passwordPage = getPasswordPage(shortKey, 'Invalid password');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(passwordPage);
+        return;
+      }
+    }
+
     // 更新访问统计
     linkData.currentVisits++;
     linkData.totalVisits++;
     linkData.lastVisitAt = new Date().toISOString();
     linkData.updatedAt = new Date().toISOString();
-    
+
     mockKV.set(shortKey, JSON.stringify(linkData));
-    
+
     // 重定向到目标URL
     res.writeHead(302, { 'Location': linkData.longUrl });
     res.end();
-    
+
   } catch (error) {
     console.error('Short link error:', error);
     res.writeHead(500, { 'Content-Type': 'text/plain' });
@@ -264,6 +287,92 @@ function generateUUID() {
     const v = c == 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
+}
+
+// 密码哈希函数（简化版本）
+async function hashPassword(password, salt = null) {
+  if (!salt) {
+    salt = generateRandomKey(16);
+  }
+
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password + salt);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+  return `${salt}:${hashHex}`;
+}
+
+// 密码验证函数
+async function verifyPassword(password, hashedPassword) {
+  const [salt, hash] = hashedPassword.split(':');
+  const newHash = await hashPassword(password, salt);
+  return newHash === hashedPassword;
+}
+
+// 生成密码输入页面
+function getPasswordPage(shortKey, error = '') {
+  return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>密码保护 - MyUrls</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .glass-effect {
+          background: rgba(255, 255, 255, 0.25);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="glass-effect rounded-2xl p-8 w-full max-w-md shadow-2xl">
+        <div class="text-center mb-6">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-white rounded-full shadow-lg mb-4">
+                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-white mb-2">此链接需要密码访问</h2>
+            <p class="text-white opacity-75">请输入正确的访问密码</p>
+        </div>
+
+        ${error ? `<div class="bg-red-500 bg-opacity-20 border border-red-300 text-red-100 px-4 py-3 rounded-lg mb-4 text-center">${error}</div>` : ''}
+
+        <form method="get" class="space-y-4">
+            <div>
+                <label for="password" class="block text-white text-sm font-medium mb-2">访问密码</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    required
+                    class="w-full px-4 py-3 bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 focus:bg-opacity-100 transition-all duration-200"
+                    placeholder="请输入密码"
+                    autofocus
+                >
+            </div>
+            <button
+                type="submit"
+                class="w-full px-4 py-3 bg-white text-blue-600 font-semibold rounded-lg hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 transition-all duration-200"
+            >
+                访问链接
+            </button>
+        </form>
+
+        <div class="text-center mt-6">
+            <a href="/" class="text-white opacity-75 hover:opacity-100 text-sm transition-opacity duration-200">
+                返回首页
+            </a>
+        </div>
+    </div>
+</body>
+</html>`;
 }
 
 // 创建服务器
@@ -303,7 +412,7 @@ const server = http.createServer(async (req, res) => {
     await handleAPI(pathname, req.method, body, res);
   } else if (pathname.match(/^\/[a-zA-Z0-9]+$/)) {
     const shortKey = pathname.substring(1);
-    await handleShortLink(shortKey, res);
+    await handleShortLink(shortKey, parsedUrl.query, res);
   } else {
     // 静态文件
     const filePath = path.join(__dirname, pathname);

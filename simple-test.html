@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>简单测试</title>
+</head>
+<body>
+    <h1>API测试</h1>
+    <button onclick="testAPI()">测试创建链接</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAPI() {
+            try {
+                const response = await fetch('http://localhost:8788/api/links', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        longUrl: 'https://www.example.com',
+                        shortKey: 'test123',
+                        password: 'mypassword',
+                        title: '测试链接'
+                    })
+                });
+                
+                const data = await response.json();
+                document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+                if (data.success) {
+                    document.getElementById('result').innerHTML += '<p><a href="' + data.data.shortUrl + '" target="_blank">测试短链接</a> (密码: mypassword)</p>';
+                }
+            } catch (error) {
+                document.getElementById('result').innerHTML = '<p style="color: red;">错误: ' + error.message + '</p>';
+            }
+        }
+    </script>
+</body>
+</html>

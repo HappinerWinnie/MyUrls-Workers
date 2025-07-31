@@ -185,6 +185,23 @@
                 >
               </div>
             </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label for="password" class="block text-white text-sm font-medium mb-2 text-left">访问密码（可选）</label>
+                <input
+                  id="password"
+                  v-model="password"
+                  type="password"
+                  placeholder="设置访问密码"
+                  class="w-full px-4 py-3 bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 focus:bg-opacity-100 transition-all duration-200"
+                >
+                <p class="text-white text-xs opacity-75 mt-1 text-left">设置后访问链接需要输入密码</p>
+              </div>
+              <div>
+                <!-- 占位空间，保持布局平衡 -->
+              </div>
+            </div>
           </div>
 
           <!-- 操作按钮 -->
@@ -237,7 +254,7 @@
       </div>
 
       <!-- 功能特性 -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div class="glass-effect rounded-xl p-6 text-center">
           <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-4">
             <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -256,6 +273,16 @@
           </div>
           <h3 class="text-white font-semibold mb-2">自定义别名</h3>
           <p class="text-white opacity-75 text-sm">支持自定义短链接后缀，便于记忆和品牌化</p>
+        </div>
+
+        <div class="glass-effect rounded-xl p-6 text-center">
+          <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+            </svg>
+          </div>
+          <h3 class="text-white font-semibold mb-2">密码保护</h3>
+          <p class="text-white opacity-75 text-sm">为链接设置访问密码，保护重要内容安全</p>
         </div>
 
         <div class="glass-effect rounded-xl p-6 text-center">
@@ -295,6 +322,7 @@
           maxVisits: -1,
           title: '',
           expiryDays: '',
+          password: '',
           showAdvanced: false,
           urlError: '',
           linkInfo: null
@@ -324,7 +352,8 @@
               shortKey: this.customAlias || undefined,
               title: this.title || undefined,
               maxVisits: this.maxVisits || -1,
-              expiryDays: this.expiryDays || undefined
+              expiryDays: this.expiryDays || undefined,
+              password: this.password || undefined
             };
 
             const response = await axios.post('/api/links', requestData, {
@@ -385,6 +414,7 @@
           this.title = '';
           this.maxVisits = -1;
           this.expiryDays = '';
+          this.password = '';
           this.showAdvanced = false;
         },
 

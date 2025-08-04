@@ -144,8 +144,7 @@ async function handleAPI(pathname, method, body, res) {
           maxVisits: data.maxVisits || -1,
           currentVisits: 0,
           expiresAt: data.expiryDays ? new Date(Date.now() + data.expiryDays * 24 * 60 * 60 * 1000).toISOString() : null,
-          accessMode: 'redirect',
-          secureMode: data.secureMode !== false, // 默认启用安全模式
+          accessMode: data.accessMode || 'proxy', // 默认使用代理模式
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           createdBy: 'anonymous',
@@ -261,26 +260,30 @@ async function handleShortLink(shortKey, query, res) {
 
     mockKV.set(shortKey, JSON.stringify(linkData));
 
-    // 检查访问模式，决定如何处理重定向
-    const forceSecure = query.secure;
+    // 根据访问模式处理请求
+    switch (linkData.accessMode) {
+      case 'proxy': {
+        // 代理模式 - 在简化服务器中返回提示页面
+        const proxyPage = getProxyModePage(linkData.longUrl, linkData.title);
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(proxyPage);
+        break;
+      }
 
-    // 优先级：URL参数 > 链接设置 > 默认启用安全模式
-    let secureMode = linkData.secureMode !== false; // 默认启用安全模式
-    if (forceSecure === 'true') {
-      secureMode = true;
-    } else if (forceSecure === 'false') {
-      secureMode = false;
-    }
+      case 'iframe': {
+        // iframe嵌入模式
+        const iframePage = getIframePage(linkData.longUrl, linkData.title);
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(iframePage);
+        break;
+      }
 
-    if (secureMode) {
-      // 使用安全的JavaScript重定向页面
-      const secureRedirectPage = getSecureRedirectPage(linkData.longUrl, linkData.title);
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(secureRedirectPage);
-    } else {
-      // 传统HTTP重定向（向后兼容）
-      res.writeHead(302, { 'Location': linkData.longUrl });
-      res.end();
+      case 'redirect':
+      default:
+        // 传统HTTP重定向
+        res.writeHead(302, { 'Location': linkData.longUrl });
+        res.end();
+        break;
     }
 
   } catch (error) {
@@ -328,6 +331,94 @@ async function verifyPassword(password, hashedPassword) {
   const [salt, hash] = hashedPassword.split(':');
   const newHash = await hashPassword(password, salt);
   return newHash === hashedPassword;
+}
+
+// 生成代理模式提示页面（简化服务器不支持真正的代理）
+function getProxyModePage(targetUrl, title = '') {
+  return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title ? title + ' - ' : ''}代理访问 - MyUrls</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .glass-effect {
+          background: rgba(255, 255, 255, 0.25);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="glass-effect rounded-2xl p-8 w-full max-w-md shadow-2xl text-center">
+        <div class="w-16 h-16 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+            </svg>
+        </div>
+        <h2 class="text-2xl font-bold text-white mb-4">代理访问模式</h2>
+        <p class="text-white opacity-75 mb-6">此链接使用代理访问模式，可完全隐藏目标URL</p>
+        <div class="text-white opacity-50 text-sm mb-6">
+            <p>⚠️ 简化开发服务器不支持真正的代理功能</p>
+            <p>在生产环境中，目标URL将完全隐藏</p>
+        </div>
+        <div class="space-y-3">
+            <button onclick="window.location.href='${targetUrl}'" class="w-full px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg hover:bg-opacity-90 transition-all duration-200">
+                继续访问目标页面
+            </button>
+            <button onclick="history.back()" class="w-full px-6 py-2 bg-white bg-opacity-20 text-white rounded-lg hover:bg-opacity-30 transition-all duration-200">
+                返回
+            </button>
+        </div>
+    </div>
+</body>
+</html>`;
+}
+
+// 生成iframe嵌入页面
+function getIframePage(targetUrl, title = '') {
+  return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title ? title + ' - ' : ''}MyUrls</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        iframe {
+            width: 100%;
+            height: 100vh;
+            border: none;
+        }
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: Arial, sans-serif;
+            color: #666;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">正在加载...</div>
+    <iframe src="${targetUrl}" onload="document.getElementById('loading').style.display='none'"></iframe>
+</body>
+</html>`;
 }
 
 // 生成安全重定向页面

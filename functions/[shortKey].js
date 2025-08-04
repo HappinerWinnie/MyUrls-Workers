@@ -56,7 +56,13 @@ export async function onRequest(context) {
     case 'warning':
       return await handleWarningMode(request, linkData);
     case 'proxy':
+      // 更新访问统计
+      await updateVisitStats(linkData, kv, request, analytics);
       return await handleProxyMode(request, linkData);
+    case 'iframe':
+      // 更新访问统计
+      await updateVisitStats(linkData, kv, request, analytics);
+      return await handleIframeMode(request, linkData);
     case 'redirect':
     default:
       return await handleRedirectMode(request, linkData, kv, analytics);
@@ -100,18 +106,96 @@ async function handleWarningMode(request, linkData) {
 }
 
 /**
- * 处理代理模式
+ * 处理代理模式 - 完全隐藏目标URL
  */
 async function handleProxyMode(request, linkData) {
   try {
-    const response = await fetch(linkData.longUrl);
-    return new Response(response.body, {
-      status: response.status,
-      headers: response.headers
+    // 构建代理请求
+    const targetUrl = new URL(linkData.longUrl);
+    const requestUrl = new URL(request.url);
+
+    // 保持原始请求的查询参数（除了内部参数）
+    const proxyUrl = new URL(linkData.longUrl);
+    for (const [key, value] of requestUrl.searchParams) {
+      if (!['password', 'confirmed', 'secure'].includes(key)) {
+        proxyUrl.searchParams.set(key, value);
+      }
+    }
+
+    // 构建代理请求头
+    const proxyHeaders = new Headers();
+
+    // 复制重要的请求头
+    const importantHeaders = ['accept', 'accept-language', 'cache-control', 'user-agent'];
+    for (const header of importantHeaders) {
+      const value = request.headers.get(header);
+      if (value) {
+        proxyHeaders.set(header, value);
+      }
+    }
+
+    // 设置正确的Host头
+    proxyHeaders.set('host', targetUrl.host);
+
+    // 设置Referer为目标域名，避免防盗链检测
+    proxyHeaders.set('referer', targetUrl.origin);
+
+    // 发起代理请求
+    const response = await fetch(proxyUrl.toString(), {
+      method: request.method,
+      headers: proxyHeaders,
+      body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined
     });
+
+    // 处理响应头
+    const responseHeaders = new Headers();
+
+    // 复制安全的响应头
+    const safeHeaders = [
+      'content-type', 'content-length', 'cache-control', 'expires',
+      'last-modified', 'etag', 'content-encoding', 'content-disposition'
+    ];
+
+    for (const header of safeHeaders) {
+      const value = response.headers.get(header);
+      if (value) {
+        responseHeaders.set(header, value);
+      }
+    }
+
+    // 添加安全头
+    responseHeaders.set('x-frame-options', 'SAMEORIGIN');
+    responseHeaders.set('x-content-type-options', 'nosniff');
+    responseHeaders.set('referrer-policy', 'no-referrer');
+
+    // 处理HTML内容，修复相对链接
+    let body = response.body;
+    const contentType = response.headers.get('content-type') || '';
+
+    if (contentType.includes('text/html')) {
+      const html = await response.text();
+      const modifiedHtml = modifyHtmlContent(html, targetUrl, requestUrl);
+      body = modifiedHtml;
+      responseHeaders.set('content-length', new TextEncoder().encode(modifiedHtml).length.toString());
+    }
+
+    return new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: responseHeaders
+    });
+
   } catch (error) {
-    return new Response("Failed to proxy request", { status: 502 });
+    console.error('Proxy error:', error);
+    return htmlResponse(getProxyErrorPage(error.message));
   }
+}
+
+/**
+ * 处理iframe嵌入模式
+ */
+async function handleIframeMode(request, linkData) {
+  return htmlResponse(getIframePage(linkData.longUrl, linkData.title));
 }
 
 /**
@@ -121,24 +205,34 @@ async function handleRedirectMode(request, linkData, kv, analytics) {
   // 更新访问统计
   await updateVisitStats(linkData, kv, request, analytics);
 
-  // 检查访问模式，决定如何处理重定向
-  const url = new URL(request.url);
-  const forceSecure = url.searchParams.get('secure');
+  // 直接HTTP重定向
+  return redirectResponse(linkData.longUrl);
+}
 
-  // 优先级：URL参数 > 链接设置 > 默认启用安全模式
-  let secureMode = linkData.secureMode !== false; // 默认启用安全模式
-  if (forceSecure === 'true') {
-    secureMode = true;
-  } else if (forceSecure === 'false') {
-    secureMode = false;
-  }
+/**
+ * 修改HTML内容，处理相对链接
+ */
+function modifyHtmlContent(html, targetUrl, requestUrl) {
+  try {
+    // 简单的相对链接修复
+    const baseUrl = targetUrl.origin;
 
-  if (secureMode) {
-    // 使用安全的JavaScript重定向页面
-    return htmlResponse(getSecureRedirectPage(linkData.longUrl, linkData.title));
-  } else {
-    // 传统HTTP重定向（向后兼容）
-    return redirectResponse(linkData.longUrl);
+    // 修复相对链接
+    html = html.replace(/href="\/([^"]*?)"/g, `href="${baseUrl}/$1"`);
+    html = html.replace(/src="\/([^"]*?)"/g, `src="${baseUrl}/$1"`);
+
+    // 修复相对路径（不以/开头）
+    html = html.replace(/href="(?!https?:\/\/|\/|#)([^"]*?)"/g, `href="${targetUrl.href.replace(/\/[^\/]*$/, '')}/$1"`);
+    html = html.replace(/src="(?!https?:\/\/|\/|#)([^"]*?)"/g, `src="${targetUrl.href.replace(/\/[^\/]*$/, '')}/$1"`);
+
+    // 添加base标签
+    const baseTag = `<base href="${targetUrl.origin}">`;
+    html = html.replace(/<head>/i, `<head>\n${baseTag}`);
+
+    return html;
+  } catch (error) {
+    console.error('HTML modification error:', error);
+    return html; // 返回原始HTML
   }
 }
 
@@ -182,6 +276,90 @@ async function updateVisitStats(linkData, kv, request, analytics) {
   } catch (error) {
     console.error('Failed to update visit stats:', error);
   }
+}
+
+/**
+ * 生成iframe嵌入页面
+ */
+function getIframePage(targetUrl, title = '') {
+  return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title ? title + ' - ' : ''}MyUrls</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        iframe {
+            width: 100%;
+            height: 100vh;
+            border: none;
+        }
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: Arial, sans-serif;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">正在加载...</div>
+    <iframe src="${targetUrl}" onload="document.getElementById('loading').style.display='none'"></iframe>
+</body>
+</html>`;
+}
+
+/**
+ * 生成代理错误页面
+ */
+function getProxyErrorPage(errorMessage) {
+  return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>访问失败 - MyUrls</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .glass-effect {
+          background: rgba(255, 255, 255, 0.25);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="glass-effect rounded-2xl p-8 w-full max-w-md shadow-2xl text-center">
+        <div class="w-16 h-16 bg-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+            </svg>
+        </div>
+        <h2 class="text-2xl font-bold text-white mb-4">访问失败</h2>
+        <p class="text-white opacity-75 mb-6">无法访问目标页面</p>
+        <div class="text-white opacity-50 text-sm">
+            <p>错误信息: ${errorMessage}</p>
+        </div>
+        <div class="mt-6">
+            <button onclick="history.back()" class="px-6 py-2 bg-white bg-opacity-20 text-white rounded-lg hover:bg-opacity-30 transition-all duration-200">
+                返回
+            </button>
+        </div>
+    </div>
+</body>
+</html>`;
 }
 
 /**

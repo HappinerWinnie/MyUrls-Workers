@@ -199,28 +199,37 @@
                 <p class="text-white text-xs opacity-75 mt-1 text-left">设置后访问链接需要输入密码</p>
               </div>
               <div>
-                <label class="block text-white text-sm font-medium mb-2 text-left">安全模式</label>
-                <div class="flex items-center space-x-4">
+                <label class="block text-white text-sm font-medium mb-2 text-left">访问模式</label>
+                <div class="space-y-2">
                   <label class="flex items-center text-white text-sm">
                     <input
-                      v-model="secureMode"
+                      v-model="accessMode"
                       type="radio"
-                      :value="true"
-                      class="mr-2 text-blue-600 focus:ring-blue-500"
-                    >
-                    安全跳转
-                  </label>
-                  <label class="flex items-center text-white text-sm">
-                    <input
-                      v-model="secureMode"
-                      type="radio"
-                      :value="false"
+                      value="redirect"
                       class="mr-2 text-blue-600 focus:ring-blue-500"
                     >
                     直接跳转
                   </label>
+                  <label class="flex items-center text-white text-sm">
+                    <input
+                      v-model="accessMode"
+                      type="radio"
+                      value="proxy"
+                      class="mr-2 text-blue-600 focus:ring-blue-500"
+                    >
+                    代理访问（完全隐藏目标URL）
+                  </label>
+                  <label class="flex items-center text-white text-sm">
+                    <input
+                      v-model="accessMode"
+                      type="radio"
+                      value="iframe"
+                      class="mr-2 text-blue-600 focus:ring-blue-500"
+                    >
+                    嵌入模式
+                  </label>
                 </div>
-                <p class="text-white text-xs opacity-75 mt-1 text-left">安全跳转可防止目标URL被抓包工具获取</p>
+                <p class="text-white text-xs opacity-75 mt-1 text-left">代理访问可完全隐藏目标URL，防止任何形式的检测</p>
               </div>
             </div>
           </div>
@@ -335,7 +344,7 @@
           title: '',
           expiryDays: '',
           password: '',
-          secureMode: true, // 默认启用安全模式
+          accessMode: 'proxy', // 默认使用代理模式（最安全）
           showAdvanced: false,
           urlError: '',
           linkInfo: null
@@ -367,7 +376,7 @@
               maxVisits: this.maxVisits || -1,
               expiryDays: this.expiryDays || undefined,
               password: this.password || undefined,
-              secureMode: this.secureMode
+              accessMode: this.accessMode
             };
 
             const response = await axios.post('/api/links', requestData, {
@@ -429,7 +438,7 @@
           this.maxVisits = -1;
           this.expiryDays = '';
           this.password = '';
-          this.secureMode = true; // 重置为默认的安全模式
+          this.accessMode = 'proxy'; // 重置为默认的代理模式
           this.showAdvanced = false;
         },
 

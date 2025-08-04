@@ -125,8 +125,11 @@ async function handleProxyMode(request, linkData) {
     // 构建代理请求头
     const proxyHeaders = new Headers();
 
-    // 复制重要的请求头
-    const importantHeaders = ['accept', 'accept-language', 'cache-control', 'user-agent'];
+    // 设置ClashMeta User-Agent访问原始链接
+    proxyHeaders.set('user-agent', 'ClashMeta/1.18.0');
+
+    // 复制其他重要的请求头
+    const importantHeaders = ['accept', 'accept-language', 'cache-control'];
     for (const header of importantHeaders) {
       const value = request.headers.get(header);
       if (value) {
@@ -150,13 +153,19 @@ async function handleProxyMode(request, linkData) {
     // 处理响应头
     const responseHeaders = new Headers();
 
-    // 复制安全的响应头
-    const safeHeaders = [
+    // 复制重要的响应头（包括用户指定的特殊响应头）
+    const preserveHeaders = [
       'content-type', 'content-length', 'cache-control', 'expires',
-      'last-modified', 'etag', 'content-encoding', 'content-disposition'
+      'last-modified', 'etag', 'content-encoding', 'content-disposition',
+      'subscription-userinfo', // Clash订阅信息
+      'profile-update-interval', // 订阅更新间隔
+      'subscription-title', // 订阅标题
+      'content-encoding', // 内容编码
+      'accept-ranges', // 范围请求支持
+      'vary' // 缓存变化
     ];
 
-    for (const header of safeHeaders) {
+    for (const header of preserveHeaders) {
       const value = response.headers.get(header);
       if (value) {
         responseHeaders.set(header, value);
@@ -205,8 +214,51 @@ async function handleRedirectMode(request, linkData, kv, analytics) {
   // 更新访问统计
   await updateVisitStats(linkData, kv, request, analytics);
 
-  // 直接HTTP重定向
-  return redirectResponse(linkData.longUrl);
+  // 获取目标URL的响应头信息
+  try {
+    // 先发起HEAD请求获取响应头，使用ClashMeta User-Agent
+    const headResponse = await fetch(linkData.longUrl, {
+      method: 'HEAD',
+      headers: {
+        'User-Agent': 'ClashMeta/1.18.0', // 服务器端访问原始链接时使用ClashMeta UA
+        'Accept': request.headers.get('accept') || '*/*',
+        'Accept-Language': request.headers.get('accept-language') || 'en-US,en;q=0.9',
+      }
+    });
+
+    // 创建重定向响应，保留重要的响应头
+    const redirectHeaders = {
+      'Location': linkData.longUrl
+    };
+
+    // 保留重要的响应头
+    const preserveHeaders = [
+      'subscription-userinfo',
+      'content-disposition',
+      'content-type',
+      'cache-control',
+      'expires',
+      'last-modified',
+      'etag'
+    ];
+
+    for (const headerName of preserveHeaders) {
+      const headerValue = headResponse.headers.get(headerName);
+      if (headerValue) {
+        redirectHeaders[headerName] = headerValue;
+      }
+    }
+
+    return new Response(null, {
+      status: 302,
+      headers: redirectHeaders
+    });
+
+  } catch (error) {
+    console.error('Error fetching target URL headers:', error);
+    // 如果获取响应头失败，仍然进行重定向
+    return redirectResponse(linkData.longUrl);
+  }
 }
 
 /**

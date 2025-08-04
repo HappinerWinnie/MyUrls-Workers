@@ -198,7 +198,7 @@ async function handleAPI(pathname, method, body, res) {
 }
 
 // 处理短链接访问
-async function handleShortLink(shortKey, query, res) {
+async function handleShortLink(shortKey, query, res, req) {
   try {
     const linkDataStr = mockKV.get(shortKey);
     if (!linkDataStr) {
@@ -279,11 +279,74 @@ async function handleShortLink(shortKey, query, res) {
       }
 
       case 'redirect':
-      default:
-        // 传统HTTP重定向
-        res.writeHead(302, { 'Location': linkData.longUrl });
-        res.end();
+      default: {
+        // 传统HTTP重定向，保留目标URL的响应头
+        try {
+          // 获取目标URL的响应头
+          const https = require('https');
+          const http = require('http');
+          const targetUrl = new URL(linkData.longUrl);
+          const protocol = targetUrl.protocol === 'https:' ? https : http;
+
+          const headRequest = protocol.request({
+            hostname: targetUrl.hostname,
+            port: targetUrl.port,
+            path: targetUrl.pathname + targetUrl.search,
+            method: 'HEAD',
+            headers: {
+              'User-Agent': 'ClashMeta/1.18.0', // 服务器端访问原始链接时使用ClashMeta UA
+              'Accept': req.headers['accept'] || '*/*'
+            }
+          }, (headRes) => {
+            // 构建重定向响应头
+            const redirectHeaders = { 'Location': linkData.longUrl };
+
+            // 保留重要的响应头
+            const preserveHeaders = [
+              'subscription-userinfo',
+              'content-disposition',
+              'content-type',
+              'cache-control',
+              'expires',
+              'last-modified',
+              'etag'
+            ];
+
+            for (const headerName of preserveHeaders) {
+              const headerValue = headRes.headers[headerName.toLowerCase()];
+              if (headerValue) {
+                redirectHeaders[headerName] = headerValue;
+              }
+            }
+
+            res.writeHead(302, redirectHeaders);
+            res.end();
+          });
+
+          headRequest.on('error', (error) => {
+            console.error('Error fetching target headers:', error);
+            // 如果获取响应头失败，仍然进行重定向
+            res.writeHead(302, { 'Location': linkData.longUrl });
+            res.end();
+          });
+
+          headRequest.setTimeout(5000, () => {
+            headRequest.destroy();
+            // 超时时直接重定向
+            res.writeHead(302, { 'Location': linkData.longUrl });
+            res.end();
+          });
+
+          headRequest.end();
+
+        } catch (error) {
+          console.error('Error in redirect handling:', error);
+          // 出错时直接重定向
+          res.writeHead(302, { 'Location': linkData.longUrl });
+          res.end();
+        }
         break;
+      }
     }
 
   } catch (error) {
@@ -604,7 +667,7 @@ const server = http.createServer(async (req, res) => {
     await handleAPI(pathname, req.method, body, res);
   } else if (pathname.match(/^\/[a-zA-Z0-9]+$/)) {
     const shortKey = pathname.substring(1);
-    await handleShortLink(shortKey, parsedUrl.query, res);
+    await handleShortLink(shortKey, parsedUrl.query, res, req);
   } else {
     // 静态文件
     const filePath = path.join(__dirname, pathname);

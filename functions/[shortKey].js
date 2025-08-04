@@ -220,7 +220,7 @@ async function handleRedirectMode(request, linkData, kv, analytics) {
     const headResponse = await fetch(linkData.longUrl, {
       method: 'HEAD',
       headers: {
-        'User-Agent': 'ClashMeta/1.18.0', // 服务器端访问原始链接时使用ClashMeta UA
+        'User-Agent': 'ClashMeta', // 服务器端访问原始链接时使用ClashMeta UA
         'Accept': request.headers.get('accept') || '*/*',
         'Accept-Language': request.headers.get('accept-language') || 'en-US,en;q=0.9',
       }

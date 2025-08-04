@@ -147,6 +147,7 @@ async function createLink(request, kv, isAuthenticated) {
       currentVisits: 0,
       expiresAt,
       accessMode: data.accessMode || 'redirect',
+      secureMode: data.secureMode !== false, // 默认启用安全模式
       createdAt: getCurrentTimestamp(),
       updatedAt: getCurrentTimestamp(),
       createdBy: isAuthenticated ? 'admin' : 'anonymous',

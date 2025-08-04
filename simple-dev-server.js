@@ -145,6 +145,7 @@ async function handleAPI(pathname, method, body, res) {
           currentVisits: 0,
           expiresAt: data.expiryDays ? new Date(Date.now() + data.expiryDays * 24 * 60 * 60 * 1000).toISOString() : null,
           accessMode: 'redirect',
+          secureMode: data.secureMode !== false, // 默认启用安全模式
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           createdBy: 'anonymous',
@@ -260,9 +261,27 @@ async function handleShortLink(shortKey, query, res) {
 
     mockKV.set(shortKey, JSON.stringify(linkData));
 
-    // 重定向到目标URL
-    res.writeHead(302, { 'Location': linkData.longUrl });
-    res.end();
+    // 检查访问模式，决定如何处理重定向
+    const forceSecure = query.secure;
+
+    // 优先级：URL参数 > 链接设置 > 默认启用安全模式
+    let secureMode = linkData.secureMode !== false; // 默认启用安全模式
+    if (forceSecure === 'true') {
+      secureMode = true;
+    } else if (forceSecure === 'false') {
+      secureMode = false;
+    }
+
+    if (secureMode) {
+      // 使用安全的JavaScript重定向页面
+      const secureRedirectPage = getSecureRedirectPage(linkData.longUrl, linkData.title);
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(secureRedirectPage);
+    } else {
+      // 传统HTTP重定向（向后兼容）
+      res.writeHead(302, { 'Location': linkData.longUrl });
+      res.end();
+    }
 
   } catch (error) {
     console.error('Short link error:', error);
@@ -309,6 +328,88 @@ async function verifyPassword(password, hashedPassword) {
   const [salt, hash] = hashedPassword.split(':');
   const newHash = await hashPassword(password, salt);
   return newHash === hashedPassword;
+}
+
+// 生成安全重定向页面
+function getSecureRedirectPage(targetUrl, title = '') {
+  // 对URL进行Base64编码以避免在HTML源码中直接暴露
+  const encodedUrl = Buffer.from(encodeURIComponent(targetUrl)).toString('base64');
+
+  return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title ? title + ' - ' : ''}正在跳转 - MyUrls</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .glass-effect {
+          background: rgba(255, 255, 255, 0.25);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        .spinner {
+          border: 3px solid rgba(255, 255, 255, 0.3);
+          border-radius: 50%;
+          border-top: 3px solid white;
+          width: 40px;
+          height: 40px;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="glass-effect rounded-2xl p-8 w-full max-w-md shadow-2xl text-center">
+        <div class="spinner mx-auto mb-6"></div>
+        <h2 class="text-2xl font-bold text-white mb-4">正在跳转...</h2>
+        <p class="text-white opacity-75 mb-6">请稍候，即将为您跳转到目标页面</p>
+        <div class="text-white opacity-50 text-sm">
+            <p>如果页面没有自动跳转，请点击下方按钮</p>
+            <button id="manualRedirect" class="mt-4 px-6 py-2 bg-white bg-opacity-20 text-white rounded-lg hover:bg-opacity-30 transition-all duration-200">
+                手动跳转
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 解码目标URL
+        const encodedUrl = '${encodedUrl}';
+        let targetUrl;
+
+        try {
+            targetUrl = decodeURIComponent(atob(encodedUrl));
+        } catch (e) {
+            console.error('URL解码失败');
+            document.body.innerHTML = '<div class="text-center text-white p-8">链接解析失败</div>';
+        }
+
+        // 自动跳转（延迟1秒以显示加载动画）
+        setTimeout(() => {
+            if (targetUrl) {
+                window.location.href = targetUrl;
+            }
+        }, 1000);
+
+        // 手动跳转按钮
+        document.getElementById('manualRedirect').addEventListener('click', () => {
+            if (targetUrl) {
+                window.location.href = targetUrl;
+            }
+        });
+
+        // 防止页面被嵌入iframe（安全措施）
+        if (window.top !== window.self) {
+            window.top.location = window.location;
+        }
+    </script>
+</body>
+</html>`;
 }
 
 // 生成密码输入页面
@@ -425,7 +526,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-const PORT = 8788;
+const PORT = 8789;
 
 server.listen(PORT, () => {
   console.log('🚀 MyUrls 简化开发服务器已启动！');

@@ -126,7 +126,7 @@ async function handleProxyMode(request, linkData) {
     const proxyHeaders = new Headers();
 
     // 设置ClashMeta User-Agent访问原始链接
-    proxyHeaders.set('user-agent', 'ClashMeta/1.18.0');
+    proxyHeaders.set('user-agent', 'ClashMeta');
 
     // 复制其他重要的请求头
     const importantHeaders = ['accept', 'accept-language', 'cache-control'];

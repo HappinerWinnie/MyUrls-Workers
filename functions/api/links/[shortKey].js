@@ -147,6 +147,11 @@ async function updateLink(request, kv, linkData) {
       linkData.maxVisits = isNaN(maxVisits) ? -1 : maxVisits;
     }
 
+    if (updateData.currentVisits !== undefined) {
+      const currentVisits = parseInt(updateData.currentVisits);
+      linkData.currentVisits = isNaN(currentVisits) ? 0 : Math.max(0, currentVisits);
+    }
+
     if (updateData.expiryDays !== undefined) {
       if (updateData.expiryDays && parseInt(updateData.expiryDays) > 0) {
         const days = parseInt(updateData.expiryDays);

@@ -173,6 +173,80 @@ async function handleAPI(pathname, method, body, res) {
           }
         };
       }
+    } else if (pathname === '/api/links' && method === 'GET') {
+      // 获取链接列表
+      const links = [];
+      for (const [shortKey, linkDataStr] of mockKV.entries()) {
+        try {
+          const linkData = JSON.parse(linkDataStr);
+          links.push(linkData);
+        } catch (error) {
+          console.error('Error parsing link data:', error);
+        }
+      }
+
+      result = {
+        success: true,
+        data: {
+          links: links.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        }
+      };
+    } else if (pathname.startsWith('/api/links/') && method === 'PUT') {
+      // 更新链接
+      const shortKey = pathname.split('/')[3];
+      const linkDataStr = mockKV.get(shortKey);
+
+      if (!linkDataStr) {
+        result = {
+          success: false,
+          error: { message: 'Link not found' }
+        };
+      } else {
+        const linkData = JSON.parse(linkDataStr);
+        const updateData = JSON.parse(body);
+
+        // 更新字段
+        if (updateData.title !== undefined) {
+          linkData.title = updateData.title;
+        }
+        if (updateData.description !== undefined) {
+          linkData.description = updateData.description;
+        }
+        if (updateData.maxVisits !== undefined) {
+          linkData.maxVisits = parseInt(updateData.maxVisits) || -1;
+        }
+        if (updateData.currentVisits !== undefined) {
+          linkData.currentVisits = Math.max(0, parseInt(updateData.currentVisits) || 0);
+        }
+        if (updateData.isActive !== undefined) {
+          linkData.isActive = updateData.isActive;
+        }
+
+        linkData.updatedAt = new Date().toISOString();
+        mockKV.set(shortKey, JSON.stringify(linkData));
+
+        result = {
+          success: true,
+          message: 'Link updated successfully',
+          data: linkData
+        };
+      }
+    } else if (pathname.startsWith('/api/links/') && method === 'DELETE') {
+      // 删除链接
+      const shortKey = pathname.split('/')[3];
+
+      if (mockKV.has(shortKey)) {
+        mockKV.delete(shortKey);
+        result = {
+          success: true,
+          message: 'Link deleted successfully'
+        };
+      } else {
+        result = {
+          success: false,
+          error: { message: 'Link not found' }
+        };
+      }
     } else {
       result = {
         success: false,

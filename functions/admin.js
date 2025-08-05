@@ -396,6 +396,7 @@ function getAdminPage() {
                                         {{ formatDate(link.createdAt) }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                        <button @click="editLink(link)" class="text-green-600 hover:text-green-900 mr-3">编辑</button>
                                         <button @click="copyLink(link)" class="text-blue-600 hover:text-blue-900 mr-3">复制</button>
                                         <button @click="deleteLink(link)" class="text-red-600 hover:text-red-900">删除</button>
                                     </td>
@@ -433,6 +434,9 @@ function getAdminPage() {
                             </div>
 
                             <div class="flex space-x-3">
+                                <button @click="editLink(link)" class="text-green-600 hover:text-green-900 text-sm font-medium">
+                                    编辑
+                                </button>
                                 <button @click="copyLink(link)" class="text-blue-600 hover:text-blue-900 text-sm font-medium">
                                     复制链接
                                 </button>
@@ -442,6 +446,98 @@ function getAdminPage() {
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 编辑链接模态框 -->
+        <div v-if="showEditModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-1/2 lg:w-1/3 shadow-lg rounded-md bg-white">
+                <div class="mt-3">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-medium text-gray-900">编辑链接</h3>
+                        <button @click="closeEditModal" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <form @submit.prevent="updateLink" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">短链接</label>
+                            <input type="text" :value="editingLink.shortKey" readonly
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">目标URL</label>
+                            <input type="url" :value="editingLink.longUrl" readonly
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">标题</label>
+                            <input type="text" v-model="editingLink.title"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                            <textarea v-model="editingLink.description" rows="3"
+                                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">访问次数限制</label>
+                                <input type="number" v-model="editingLink.maxVisits" min="-1"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                <p class="text-xs text-gray-500 mt-1">-1表示无限制</p>
+                                <div v-if="editingLink.maxVisits !== originalMaxVisits" class="mt-2 p-2 bg-blue-50 rounded-md">
+                                    <p class="text-sm text-blue-700">
+                                        <span v-if="editingLink.maxVisits > originalMaxVisits">
+                                            将增加 {{ editingLink.maxVisits - originalMaxVisits }} 次访问机会
+                                        </span>
+                                        <span v-else-if="editingLink.maxVisits < originalMaxVisits && editingLink.maxVisits >= editingLink.currentVisits">
+                                            将减少 {{ originalMaxVisits - editingLink.maxVisits }} 次访问机会
+                                        </span>
+                                        <span v-else-if="editingLink.maxVisits < editingLink.currentVisits && editingLink.maxVisits > 0">
+                                            ⚠️ 新限制小于当前访问次数，链接将立即失效
+                                        </span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">当前访问次数</label>
+                                <input type="number" v-model="editingLink.currentVisits" min="0"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                <p class="text-xs text-gray-500 mt-1">可以重置访问计数</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">链接状态</label>
+                            <select v-model="editingLink.isActive"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                <option :value="true">激活</option>
+                                <option :value="false">禁用</option>
+                            </select>
+                        </div>
+
+                        <div class="flex justify-end space-x-3 pt-4">
+                            <button type="button" @click="closeEditModal"
+                                    class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                取消
+                            </button>
+                            <button type="submit" :disabled="updating"
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                                <span v-if="updating">更新中...</span>
+                                <span v-else>保存更改</span>
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -462,7 +558,11 @@ function getAdminPage() {
                     links: [],
                     loading: false,
                     creating: false,
+                    updating: false,
                     searchQuery: '',
+                    showEditModal: false,
+                    editingLink: {},
+                    originalMaxVisits: 0,
                     newLink: {
                         longUrl: '',
                         shortKey: '',
@@ -533,6 +633,54 @@ function getAdminPage() {
                     }
                 },
                 
+                editLink(link) {
+                    this.editingLink = {
+                        id: link.id,
+                        shortKey: link.shortKey,
+                        longUrl: link.longUrl,
+                        title: link.title || '',
+                        description: link.description || '',
+                        maxVisits: link.maxVisits,
+                        currentVisits: link.currentVisits,
+                        isActive: link.isActive
+                    };
+                    this.originalMaxVisits = link.maxVisits;
+                    this.showEditModal = true;
+                },
+
+                closeEditModal() {
+                    this.showEditModal = false;
+                    this.editingLink = {};
+                    this.originalMaxVisits = 0;
+                },
+
+                async updateLink() {
+                    this.updating = true;
+                    try {
+                        const updateData = {
+                            title: this.editingLink.title,
+                            description: this.editingLink.description,
+                            maxVisits: parseInt(this.editingLink.maxVisits),
+                            currentVisits: parseInt(this.editingLink.currentVisits),
+                            isActive: this.editingLink.isActive
+                        };
+
+                        const response = await axios.put('/api/links/' + this.editingLink.shortKey, updateData);
+                        if (response.data.success) {
+                            await this.loadLinks();
+                            this.closeEditModal();
+                            alert('链接更新成功！');
+                        } else {
+                            alert('更新失败: ' + response.data.error.message);
+                        }
+                    } catch (error) {
+                        console.error('Update error:', error);
+                        alert('更新失败，请重试');
+                    } finally {
+                        this.updating = false;
+                    }
+                },
+
                 copyLink(link) {
                     const url = window.location.origin + '/' + link.shortKey;
                     navigator.clipboard.writeText(url).then(() => {

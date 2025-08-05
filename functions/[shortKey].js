@@ -153,22 +153,33 @@ async function handleProxyMode(request, linkData) {
     // 处理响应头
     const responseHeaders = new Headers();
 
-    // 复制重要的响应头（包括用户指定的特殊响应头）
+    // 首先添加自定义响应头（优先级最高）
+    if (linkData.customHeaders) {
+      for (const [headerName, headerValue] of Object.entries(linkData.customHeaders)) {
+        if (headerValue) {
+          responseHeaders.set(headerName, headerValue);
+        }
+      }
+    }
+
+    // 然后复制重要的响应头（如果自定义响应头中没有设置）
     const preserveHeaders = [
       'content-type', 'content-length', 'cache-control', 'expires',
       'last-modified', 'etag', 'content-encoding', 'content-disposition',
       'subscription-userinfo', // Clash订阅信息
       'profile-update-interval', // 订阅更新间隔
       'subscription-title', // 订阅标题
-      'content-encoding', // 内容编码
       'accept-ranges', // 范围请求支持
       'vary' // 缓存变化
     ];
 
     for (const header of preserveHeaders) {
-      const value = response.headers.get(header);
-      if (value) {
-        responseHeaders.set(header, value);
+      // 只有在自定义响应头中没有设置时才从目标响应获取
+      if (!responseHeaders.has(header)) {
+        const value = response.headers.get(header);
+        if (value) {
+          responseHeaders.set(header, value);
+        }
       }
     }
 
@@ -231,7 +242,16 @@ async function handleRedirectMode(request, linkData, kv, analytics) {
       'Location': linkData.longUrl
     };
 
-    // 保留重要的响应头
+    // 首先添加自定义响应头（优先级最高）
+    if (linkData.customHeaders) {
+      for (const [headerName, headerValue] of Object.entries(linkData.customHeaders)) {
+        if (headerValue) {
+          redirectHeaders[headerName] = headerValue;
+        }
+      }
+    }
+
+    // 然后保留从目标URL获取的重要响应头（如果自定义响应头中没有设置）
     const preserveHeaders = [
       'subscription-userinfo',
       'content-disposition',
@@ -243,9 +263,12 @@ async function handleRedirectMode(request, linkData, kv, analytics) {
     ];
 
     for (const headerName of preserveHeaders) {
-      const headerValue = headResponse.headers.get(headerName);
-      if (headerValue) {
-        redirectHeaders[headerName] = headerValue;
+      // 只有在自定义响应头中没有设置时才从目标URL获取
+      if (!redirectHeaders[headerName]) {
+        const headerValue = headResponse.headers.get(headerName);
+        if (headerValue) {
+          redirectHeaders[headerName] = headerValue;
+        }
       }
     }
 

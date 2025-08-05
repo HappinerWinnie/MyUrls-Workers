@@ -232,6 +232,89 @@
                 <p class="text-white text-xs opacity-75 mt-1 text-left">代理访问可完全隐藏目标URL，防止任何形式的检测</p>
               </div>
             </div>
+
+            <!-- 自定义响应头设置 -->
+            <div class="space-y-4">
+              <h4 class="text-white font-medium text-left">自定义响应头（可选）</h4>
+
+              <!-- Subscription-Userinfo 设置 -->
+              <div>
+                <label class="block text-white text-sm font-medium mb-2 text-left">订阅用户信息 (subscription-userinfo)</label>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
+                  <div>
+                    <label class="block text-white text-xs mb-1 text-left">上传 (GB)</label>
+                    <input
+                      v-model="subscriptionInfo.upload"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                      class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                    >
+                  </div>
+                  <div>
+                    <label class="block text-white text-xs mb-1 text-left">下载 (GB)</label>
+                    <input
+                      v-model="subscriptionInfo.download"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                      class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                    >
+                  </div>
+                  <div>
+                    <label class="block text-white text-xs mb-1 text-left">总流量 (GB)</label>
+                    <input
+                      v-model="subscriptionInfo.total"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="400"
+                      class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                    >
+                  </div>
+                  <div>
+                    <label class="block text-white text-xs mb-1 text-left">到期时间</label>
+                    <input
+                      v-model="subscriptionInfo.expire"
+                      type="date"
+                      class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                    >
+                  </div>
+                </div>
+                <p class="text-white text-xs opacity-75 text-left">用于Clash订阅链接显示流量使用情况</p>
+              </div>
+
+              <!-- Content-Disposition 设置 -->
+              <div>
+                <label class="block text-white text-sm font-medium mb-2 text-left">文件下载设置 (content-disposition)</label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-white text-xs mb-1 text-left">处理方式</label>
+                    <select
+                      v-model="contentDisposition.type"
+                      class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                    >
+                      <option value="">不设置</option>
+                      <option value="attachment">下载文件 (attachment)</option>
+                      <option value="inline">内联显示 (inline)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-white text-xs mb-1 text-left">文件名</label>
+                    <input
+                      v-model="contentDisposition.filename"
+                      type="text"
+                      placeholder="config.yaml"
+                      :disabled="!contentDisposition.type"
+                      class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 disabled:opacity-50"
+                    >
+                  </div>
+                </div>
+                <p class="text-white text-xs opacity-75 mt-1 text-left">设置文件下载行为和文件名</p>
+              </div>
+            </div>
           </div>
 
           <!-- 操作按钮 -->
@@ -345,6 +428,16 @@
           expiryDays: 7, // 默认有效期7天
           password: '',
           accessMode: 'proxy', // 默认使用代理模式（最安全）
+          subscriptionInfo: {
+            upload: '',
+            download: '',
+            total: '',
+            expire: ''
+          },
+          contentDisposition: {
+            type: '',
+            filename: ''
+          },
           showAdvanced: false,
           urlError: '',
           linkInfo: null
@@ -358,6 +451,55 @@
         });
       },
       methods: {
+        // 构建subscription-userinfo响应头
+        buildSubscriptionUserinfo() {
+          const info = this.subscriptionInfo;
+          if (!info.upload && !info.download && !info.total && !info.expire) {
+            return null;
+          }
+
+          const parts = [];
+
+          // 转换GB到字节
+          if (info.upload) {
+            const uploadBytes = Math.round(parseFloat(info.upload) * 1024 * 1024 * 1024);
+            parts.push(`upload=${uploadBytes}`);
+          } else {
+            parts.push('upload=0');
+          }
+
+          if (info.download) {
+            const downloadBytes = Math.round(parseFloat(info.download) * 1024 * 1024 * 1024);
+            parts.push(`download=${downloadBytes}`);
+          } else {
+            parts.push('download=0');
+          }
+
+          if (info.total) {
+            const totalBytes = Math.round(parseFloat(info.total) * 1024 * 1024 * 1024);
+            parts.push(`total=${totalBytes}`);
+          }
+
+          if (info.expire) {
+            const expireTimestamp = Math.floor(new Date(info.expire).getTime() / 1000);
+            parts.push(`expire=${expireTimestamp}`);
+          }
+
+          return parts.join('; ');
+        },
+
+        // 构建content-disposition响应头
+        buildContentDisposition() {
+          const disp = this.contentDisposition;
+          if (!disp.type || !disp.filename) {
+            return null;
+          }
+
+          // URL编码文件名
+          const encodedFilename = encodeURIComponent(disp.filename);
+          return `${disp.type}; filename*=UTF-8''${encodedFilename}`;
+        },
+
         async createShortLink() {
           // 验证URL格式
           if (!this.isValidUrl(this.longUrl)) {
@@ -369,6 +511,19 @@
           this.loading = true;
 
           try {
+            // 构建自定义响应头
+            const customHeaders = {};
+
+            const subscriptionUserinfo = this.buildSubscriptionUserinfo();
+            if (subscriptionUserinfo) {
+              customHeaders['subscription-userinfo'] = subscriptionUserinfo;
+            }
+
+            const contentDisposition = this.buildContentDisposition();
+            if (contentDisposition) {
+              customHeaders['content-disposition'] = contentDisposition;
+            }
+
             const requestData = {
               longUrl: this.longUrl,
               shortKey: this.customAlias || undefined,
@@ -376,7 +531,8 @@
               maxVisits: this.maxVisits || 10, // 默认10次
               expiryDays: this.expiryDays || 7, // 默认7天
               password: this.password || undefined,
-              accessMode: this.accessMode
+              accessMode: this.accessMode,
+              customHeaders: Object.keys(customHeaders).length > 0 ? customHeaders : undefined
             };
 
             const response = await axios.post('/api/links', requestData, {
@@ -439,6 +595,16 @@
           this.expiryDays = 7; // 重置为默认有效期7天
           this.password = '';
           this.accessMode = 'proxy'; // 重置为默认的代理模式
+          this.subscriptionInfo = {
+            upload: '',
+            download: '',
+            total: '',
+            expire: ''
+          };
+          this.contentDisposition = {
+            type: '',
+            filename: ''
+          };
           this.showAdvanced = false;
         },
 

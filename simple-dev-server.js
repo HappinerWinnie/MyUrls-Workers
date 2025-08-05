@@ -145,6 +145,7 @@ async function handleAPI(pathname, method, body, res) {
           currentVisits: 0,
           expiresAt: data.expiryDays ? new Date(Date.now() + data.expiryDays * 24 * 60 * 60 * 1000).toISOString() : null,
           accessMode: data.accessMode || 'proxy', // 默认使用代理模式
+          customHeaders: data.customHeaders || {}, // 自定义响应头
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           createdBy: 'anonymous',
@@ -301,7 +302,16 @@ async function handleShortLink(shortKey, query, res, req) {
             // 构建重定向响应头
             const redirectHeaders = { 'Location': linkData.longUrl };
 
-            // 保留重要的响应头
+            // 首先添加自定义响应头（优先级最高）
+            if (linkData.customHeaders) {
+              for (const [headerName, headerValue] of Object.entries(linkData.customHeaders)) {
+                if (headerValue) {
+                  redirectHeaders[headerName] = headerValue;
+                }
+              }
+            }
+
+            // 然后保留重要的响应头（如果自定义响应头中没有设置）
             const preserveHeaders = [
               'subscription-userinfo',
               'content-disposition',
@@ -313,9 +323,12 @@ async function handleShortLink(shortKey, query, res, req) {
             ];
 
             for (const headerName of preserveHeaders) {
-              const headerValue = headRes.headers[headerName.toLowerCase()];
-              if (headerValue) {
-                redirectHeaders[headerName] = headerValue;
+              // 只有在自定义响应头中没有设置时才从目标URL获取
+              if (!redirectHeaders[headerName]) {
+                const headerValue = headRes.headers[headerName.toLowerCase()];
+                if (headerValue) {
+                  redirectHeaders[headerName] = headerValue;
+                }
               }
             }
 

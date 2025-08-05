@@ -148,6 +148,7 @@ async function createLink(request, kv, isAuthenticated) {
       expiresAt,
       accessMode: data.accessMode || 'redirect',
       secureMode: data.secureMode !== false, // 默认启用安全模式
+      customHeaders: data.customHeaders || {}, // 自定义响应头
       createdAt: getCurrentTimestamp(),
       updatedAt: getCurrentTimestamp(),
       createdBy: isAuthenticated ? 'admin' : 'anonymous',

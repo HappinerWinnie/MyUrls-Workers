@@ -162,6 +162,9 @@ async function createLink(request, kv, isAuthenticated) {
     // 保存到KV存储
     await kv.put(shortKey, JSON.stringify(linkData));
 
+    // 清除链接索引缓存
+    await invalidateLinksCache(kv);
+
     // 构建短链接URL
     const shortUrl = `https://${request.headers.get('host')}/${shortKey}`;
 
@@ -186,7 +189,7 @@ async function createLink(request, kv, isAuthenticated) {
 }
 
 /**
- * 获取链接列表（需要认证）
+ * 获取链接列表（需要认证）- 性能优化版本
  */
 async function getLinks(request, kv, isAuthenticated) {
   if (!isAuthenticated) {
@@ -198,36 +201,221 @@ async function getLinks(request, kv, isAuthenticated) {
     const page = parseInt(url.searchParams.get('page')) || 1;
     const limit = Math.min(parseInt(url.searchParams.get('limit')) || 20, 100);
     const search = url.searchParams.get('search') || '';
+    const sortBy = url.searchParams.get('sortBy') || 'createdAt';
+    const sortOrder = url.searchParams.get('sortOrder') || 'desc';
 
-    // 获取所有链接（这里简化处理，实际应该使用分页）
-    const { keys } = await kv.list({ limit: 1000 });
-    const links = [];
+    // 尝试从缓存获取链接索引
+    const cacheKey = 'links:index';
+    let linksIndex = null;
 
-    for (const key of keys) {
-      if (key.name.startsWith('session:') || key.name.startsWith('stats:')) {
-        continue;
+    try {
+      const cachedIndex = await kv.get(cacheKey);
+      if (cachedIndex) {
+        linksIndex = JSON.parse(cachedIndex);
+        // 检查缓存是否过期（5分钟）
+        if (Date.now() - linksIndex.timestamp < 5 * 60 * 1000) {
+          console.log('Using cached links index');
+        } else {
+          linksIndex = null;
+        }
+      }
+    } catch (e) {
+      console.log('Cache miss or error, rebuilding index');
+    }
+
+    // 如果没有缓存或缓存过期，重建索引
+    if (!linksIndex) {
+      linksIndex = await buildLinksIndex(kv);
+      // 异步更新缓存，不阻塞响应
+      updateLinksIndexCache(kv, cacheKey, linksIndex).catch(console.error);
+    }
+
+    // 过滤搜索结果
+    let filteredLinks = linksIndex.links;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredLinks = linksIndex.links.filter(link =>
+        link.shortKey.toLowerCase().includes(searchLower) ||
+        link.longUrl.toLowerCase().includes(searchLower) ||
+        (link.title && link.title.toLowerCase().includes(searchLower)) ||
+        (link.description && link.description.toLowerCase().includes(searchLower)) ||
+        (link.tags && link.tags.some(tag => tag.toLowerCase().includes(searchLower)))
+      );
+    }
+
+    // 排序
+    filteredLinks.sort((a, b) => {
+      let aValue = a[sortBy];
+      let bValue = b[sortBy];
+
+      // 处理日期字段
+      if (sortBy === 'createdAt' || sortBy === 'updatedAt' || sortBy === 'lastVisitAt') {
+        aValue = aValue ? new Date(aValue) : new Date(0);
+        bValue = bValue ? new Date(bValue) : new Date(0);
       }
 
-      const linkData = await kv.get(key.name);
-      if (linkData) {
-        try {
-          const link = JSON.parse(linkData);
-          
-          // 搜索过滤
-          if (search) {
-            const searchLower = search.toLowerCase();
-            const matchesSearch = 
-              link.shortKey.toLowerCase().includes(searchLower) ||
-              link.longUrl.toLowerCase().includes(searchLower) ||
-              (link.title && link.title.toLowerCase().includes(searchLower)) ||
-              (link.description && link.description.toLowerCase().includes(searchLower));
-            
-            if (!matchesSearch) {
-              continue;
-            }
-          }
+      // 处理数字字段
+      if (sortBy === 'currentVisits' || sortBy === 'totalVisits' || sortBy === 'maxVisits') {
+        aValue = aValue || 0;
+        bValue = bValue || 0;
+      }
 
-          links.push({
+      if (sortOrder === 'desc') {
+        return bValue > aValue ? 1 : bValue < aValue ? -1 : 0;
+      } else {
+        return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+      }
+    });
+
+    // 分页
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedLinks = filteredLinks.slice(startIndex, endIndex);
+
+    // 如果需要完整数据，批量获取
+    const detailedLinks = await batchGetLinkDetails(kv, paginatedLinks);
+
+    return successResponse({
+      links: detailedLinks,
+      pagination: {
+        page,
+        limit,
+        total: filteredLinks.length,
+        totalPages: Math.ceil(filteredLinks.length / limit)
+      },
+      meta: {
+        sortBy,
+        sortOrder,
+        search,
+        cacheUsed: !!linksIndex,
+        totalLinksInSystem: linksIndex.links.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Get links error:', error);
+    return errorResponse('Failed to get links', 500, 500);
+  }
+}
+
+/**
+ * 构建链接索引 - 只获取必要的元数据
+ */
+async function buildLinksIndex(kv) {
+  console.log('Building links index...');
+  const startTime = Date.now();
+
+  // 获取所有键
+  const { keys } = await kv.list({ limit: 1000 });
+  const linkKeys = keys.filter(key =>
+    !key.name.startsWith('session:') &&
+    !key.name.startsWith('stats:') &&
+    !key.name.startsWith('links:') &&
+    !key.name.startsWith('cache:')
+  );
+
+  // 并行获取链接数据，但只提取索引需要的字段
+  const batchSize = 50; // 控制并发数量
+  const links = [];
+
+  for (let i = 0; i < linkKeys.length; i += batchSize) {
+    const batch = linkKeys.slice(i, i + batchSize);
+    const batchPromises = batch.map(async (key) => {
+      try {
+        const linkData = await kv.get(key.name);
+        if (linkData) {
+          const link = JSON.parse(linkData);
+          // 只返回索引需要的字段，减少内存使用
+          return {
+            shortKey: link.shortKey,
+            longUrl: link.longUrl,
+            title: link.title || '',
+            description: link.description || '',
+            tags: link.tags || [],
+            createdAt: link.createdAt,
+            updatedAt: link.updatedAt,
+            lastVisitAt: link.lastVisitAt,
+            currentVisits: link.currentVisits || 0,
+            totalVisits: link.totalVisits || 0,
+            maxVisits: link.maxVisits || -1,
+            isActive: link.isActive !== false,
+            hasPassword: !!link.password,
+            accessMode: link.accessMode || 'redirect',
+            expiresAt: link.expiresAt
+          };
+        }
+      } catch (e) {
+        console.error(`Error parsing link ${key.name}:`, e);
+      }
+      return null;
+    });
+
+    const batchResults = await Promise.all(batchPromises);
+    links.push(...batchResults.filter(Boolean));
+  }
+
+  const endTime = Date.now();
+  console.log(`Built index for ${links.length} links in ${endTime - startTime}ms`);
+
+  return {
+    links,
+    timestamp: Date.now(),
+    count: links.length
+  };
+}
+
+/**
+ * 异步更新链接索引缓存
+ */
+async function updateLinksIndexCache(kv, cacheKey, linksIndex) {
+  try {
+    await kv.put(cacheKey, JSON.stringify(linksIndex), {
+      expirationTtl: 600 // 10分钟过期
+    });
+    console.log('Links index cache updated');
+  } catch (error) {
+    console.error('Failed to update links index cache:', error);
+  }
+}
+
+/**
+ * 批量获取链接详细信息
+ */
+async function batchGetLinkDetails(kv, indexLinks) {
+  const batchSize = 20;
+  const detailedLinks = [];
+
+  for (let i = 0; i < indexLinks.length; i += batchSize) {
+    const batch = indexLinks.slice(i, i + batchSize);
+    const batchPromises = batch.map(async (indexLink) => {
+      try {
+        // 如果索引中已有足够信息，直接返回
+        if (indexLink.shortKey && indexLink.longUrl) {
+          return {
+            id: indexLink.id || indexLink.shortKey,
+            shortKey: indexLink.shortKey,
+            longUrl: indexLink.longUrl,
+            title: indexLink.title,
+            description: indexLink.description,
+            maxVisits: indexLink.maxVisits,
+            currentVisits: indexLink.currentVisits,
+            totalVisits: indexLink.totalVisits,
+            expiresAt: indexLink.expiresAt,
+            accessMode: indexLink.accessMode,
+            tags: indexLink.tags,
+            isActive: indexLink.isActive,
+            createdAt: indexLink.createdAt,
+            updatedAt: indexLink.updatedAt,
+            lastVisitAt: indexLink.lastVisitAt,
+            hasPassword: indexLink.hasPassword
+          };
+        }
+
+        // 如果需要更多信息，从KV获取完整数据
+        const linkData = await kv.get(indexLink.shortKey);
+        if (linkData) {
+          const link = JSON.parse(linkData);
+          return {
             id: link.id,
             shortKey: link.shortKey,
             longUrl: link.longUrl,
@@ -244,33 +432,29 @@ async function getLinks(request, kv, isAuthenticated) {
             updatedAt: link.updatedAt,
             lastVisitAt: link.lastVisitAt,
             hasPassword: !!link.password
-          });
-        } catch (e) {
-          console.error('Error parsing link data:', e);
+          };
         }
+      } catch (e) {
+        console.error(`Error getting details for ${indexLink.shortKey}:`, e);
       }
-    }
-
-    // 排序（按创建时间倒序）
-    links.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-    // 分页
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const paginatedLinks = links.slice(startIndex, endIndex);
-
-    return successResponse({
-      links: paginatedLinks,
-      pagination: {
-        page,
-        limit,
-        total: links.length,
-        totalPages: Math.ceil(links.length / limit)
-      }
+      return null;
     });
 
+    const batchResults = await Promise.all(batchPromises);
+    detailedLinks.push(...batchResults.filter(Boolean));
+  }
+
+  return detailedLinks;
+}
+
+/**
+ * 清除链接缓存
+ */
+async function invalidateLinksCache(kv) {
+  try {
+    await kv.delete('links:index');
+    console.log('Links cache invalidated');
   } catch (error) {
-    console.error('Get links error:', error);
-    return errorResponse('Failed to get links', 500, 500);
+    console.error('Failed to invalidate links cache:', error);
   }
 }

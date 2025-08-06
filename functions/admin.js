@@ -346,6 +346,50 @@ function getAdminPage() {
                             <button @click="loadLinks" class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
                                 刷新
                             </button>
+                            <button @click="clearCache" class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                清除缓存
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 性能信息 -->
+                    <div v-if="meta.cacheUsed !== undefined" class="mb-4 p-3 bg-gray-50 rounded-lg">
+                        <div class="flex items-center justify-between text-sm text-gray-600">
+                            <span>缓存状态: {{ meta.cacheUsed ? '已使用' : '未使用' }}</span>
+                            <span>系统总链接数: {{ meta.totalLinksInSystem }}</span>
+                            <span>当前页显示: {{ links.length }} / {{ pagination.total }}</span>
+                        </div>
+                    </div>
+
+                    <!-- 分页控件 -->
+                    <div v-if="pagination.totalPages > 1" class="mb-4 flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm text-gray-700">每页显示:</span>
+                            <select v-model="pagination.limit" @change="changePageSize(pagination.limit)"
+                                    class="border-gray-300 rounded-md text-sm">
+                                <option value="10">10</option>
+                                <option value="20">20</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+
+                        <div class="flex items-center space-x-2">
+                            <button @click="goToPage(pagination.page - 1)"
+                                    :disabled="pagination.page <= 1"
+                                    class="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50">
+                                上一页
+                            </button>
+
+                            <span class="text-sm text-gray-700">
+                                第 {{ pagination.page }} 页，共 {{ pagination.totalPages }} 页
+                            </span>
+
+                            <button @click="goToPage(pagination.page + 1)"
+                                    :disabled="pagination.page >= pagination.totalPages"
+                                    class="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50">
+                                下一页
+                            </button>
                         </div>
                     </div>
 
@@ -569,23 +613,51 @@ function getAdminPage() {
                         title: '',
                         description: '',
                         maxVisits: -1
-                    }
+                    },
+                    pagination: {
+                        page: 1,
+                        limit: 20,
+                        total: 0,
+                        totalPages: 0
+                    },
+                    meta: {
+                        cacheUsed: false,
+                        totalLinksInSystem: 0
+                    },
+                    searchTimeout: null
                 }
             },
             mounted() {
                 this.loadLinks();
             },
             methods: {
-                async loadLinks() {
+                async loadLinks(page = 1, limit = 20) {
                     this.loading = true;
+                    const startTime = Date.now();
+
                     try {
-                        const response = await axios.get('/api/links');
+                        const params = new URLSearchParams({
+                            page: page.toString(),
+                            limit: limit.toString(),
+                            search: this.searchQuery || '',
+                            sortBy: 'createdAt',
+                            sortOrder: 'desc'
+                        });
+
+                        const response = await axios.get('/api/links?' + params);
                         if (response.data.success) {
                             this.links = response.data.data.links;
+                            this.pagination = response.data.data.pagination;
+                            this.meta = response.data.data.meta || {};
                             this.updateStats();
+
+                            // 显示性能信息
+                            const loadTime = Date.now() - startTime;
+                            console.log('链接列表加载完成: ' + loadTime + 'ms, 缓存使用: ' + (this.meta.cacheUsed ? '是' : '否'));
                         }
                     } catch (error) {
                         console.error('Failed to load links:', error);
+                        alert('加载链接列表失败，请重试');
                     } finally {
                         this.loading = false;
                     }
@@ -689,8 +761,36 @@ function getAdminPage() {
                 },
                 
                 searchLinks() {
-                    // 实现搜索功能
-                    this.loadLinks();
+                    // 防抖搜索
+                    clearTimeout(this.searchTimeout);
+                    this.searchTimeout = setTimeout(() => {
+                        this.loadLinks(1, this.pagination.limit);
+                    }, 300);
+                },
+
+                // 分页相关方法
+                goToPage(page) {
+                    if (page >= 1 && page <= this.pagination.totalPages) {
+                        this.loadLinks(page, this.pagination.limit);
+                    }
+                },
+
+                changePageSize(newSize) {
+                    this.pagination.limit = newSize;
+                    this.loadLinks(1, newSize);
+                },
+
+                // 清除缓存
+                async clearCache() {
+                    try {
+                        // 这里可以添加一个专门的清除缓存API
+                        await axios.delete('/api/cache/links');
+                        alert('缓存已清除');
+                        this.loadLinks();
+                    } catch (error) {
+                        console.error('Clear cache error:', error);
+                        alert('清除缓存失败');
+                    }
                 },
                 
                 updateStats() {

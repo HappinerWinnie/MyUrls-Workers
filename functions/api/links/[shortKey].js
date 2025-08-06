@@ -183,6 +183,9 @@ async function updateLink(request, kv, linkData) {
     // 保存更新后的数据
     await kv.put(linkData.shortKey, JSON.stringify(linkData));
 
+    // 清除链接索引缓存
+    await invalidateLinksCache(kv);
+
     return successResponse({
       id: linkData.id,
       shortKey: linkData.shortKey,
@@ -218,10 +221,25 @@ async function deleteLink(kv, shortKey) {
       await kv.delete(key.name);
     }
 
+    // 清除链接索引缓存
+    await invalidateLinksCache(kv);
+
     return successResponse(null, 'Link deleted successfully');
 
   } catch (error) {
     console.error('Delete link error:', error);
     return errorResponse('Failed to delete link', 500, 500);
+  }
+}
+
+/**
+ * 清除链接缓存
+ */
+async function invalidateLinksCache(kv) {
+  try {
+    await kv.delete('links:index');
+    console.log('Links cache invalidated');
+  } catch (error) {
+    console.error('Failed to invalidate links cache:', error);
   }
 }

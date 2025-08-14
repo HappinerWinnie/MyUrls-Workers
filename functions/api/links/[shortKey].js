@@ -1,15 +1,23 @@
 // 单个链接管理API - 获取、更新、删除
-import { 
-  successResponse, 
-  errorResponse, 
-  optionsResponse, 
+/**
+ * 作者: wei
+ * 日期: 2025-08-14
+ * 功能: 支持所有前台字段的完整修改功能
+ */
+import {
+  successResponse,
+  errorResponse,
+  optionsResponse,
   unauthorizedResponse,
-  notFoundResponse 
+  notFoundResponse
 } from '../../utils/response.js';
-import { 
+import {
   getCurrentTimestamp,
   hashPassword,
-  isExpired 
+  isExpired,
+  isValidUrl,
+  sanitizeUrl,
+  generateRandomKey
 } from '../../utils/crypto.js';
 import { authMiddleware } from '../../utils/auth.js';
 
@@ -102,7 +110,7 @@ async function getLinkDetails(linkData) {
 }
 
 /**
- * 更新链接
+ * 更新链接 - 支持所有前台字段的修改
  */
 async function updateLink(request, kv, linkData) {
   try {
@@ -114,6 +122,8 @@ async function updateLink(request, kv, linkData) {
     } else {
       const formData = await request.formData();
       updateData = {
+        longUrl: formData.get('longUrl'),
+        shortKey: formData.get('shortKey'),
         title: formData.get('title'),
         description: formData.get('description'),
         password: formData.get('password'),
@@ -121,15 +131,69 @@ async function updateLink(request, kv, linkData) {
         expiryDays: formData.get('expiryDays'),
         accessMode: formData.get('accessMode'),
         tags: formData.get('tags'),
-        isActive: formData.get('isActive')
+        isActive: formData.get('isActive'),
+        customHeaders: formData.get('customHeaders')
       };
     }
 
-    // 更新字段
+    // 验证和处理longUrl修改
+    if (updateData.longUrl !== undefined && updateData.longUrl !== linkData.longUrl) {
+      const newLongUrl = sanitizeUrl(updateData.longUrl);
+      if (!isValidUrl(newLongUrl)) {
+        return errorResponse('Invalid URL format', 400);
+      }
+
+      // 安全检查：防止恶意URL
+      const urlObj = new URL(newLongUrl);
+      const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:'];
+      if (dangerousProtocols.includes(urlObj.protocol.toLowerCase())) {
+        return errorResponse('Dangerous URL protocol not allowed', 400);
+      }
+
+      linkData.longUrl = newLongUrl;
+    }
+
+    // 验证和处理shortKey修改
+    if (updateData.shortKey !== undefined && updateData.shortKey !== linkData.shortKey) {
+      const newShortKey = updateData.shortKey.trim();
+
+      // 验证shortKey格式
+      if (!newShortKey) {
+        return errorResponse('Short key cannot be empty', 400);
+      }
+
+      if (newShortKey.length < 2 || newShortKey.length > 50) {
+        return errorResponse('Short key must be between 2 and 50 characters', 400);
+      }
+
+      // 检查是否包含非法字符
+      const validPattern = /^[a-zA-Z0-9_-]+$/;
+      if (!validPattern.test(newShortKey)) {
+        return errorResponse('Short key can only contain letters, numbers, hyphens and underscores', 400);
+      }
+
+      // 检查保留关键字
+      const reservedKeys = ['api', 'admin', 'www', 'app', 'static', 'assets', 'public', 'private', 'system'];
+      if (reservedKeys.includes(newShortKey.toLowerCase())) {
+        return errorResponse(`Short key "${newShortKey}" is reserved`, 400);
+      }
+
+      // 检查新的shortKey是否已存在
+      const existingLink = await kv.get(newShortKey);
+      if (existingLink) {
+        return errorResponse(`Short key "${newShortKey}" already exists`, 409);
+      }
+
+      // 删除旧的key，使用新的key保存
+      await kv.delete(linkData.shortKey);
+      linkData.shortKey = newShortKey;
+    }
+
+    // 更新基础字段
     if (updateData.title !== undefined) {
       linkData.title = updateData.title;
     }
-    
+
     if (updateData.description !== undefined) {
       linkData.description = updateData.description;
     }
@@ -177,6 +241,45 @@ async function updateLink(request, kv, linkData) {
       linkData.isActive = Boolean(updateData.isActive);
     }
 
+    // 处理自定义响应头
+    if (updateData.customHeaders !== undefined) {
+      if (typeof updateData.customHeaders === 'object' && updateData.customHeaders !== null) {
+        linkData.customHeaders = updateData.customHeaders;
+      } else if (typeof updateData.customHeaders === 'string') {
+        try {
+          linkData.customHeaders = JSON.parse(updateData.customHeaders);
+        } catch (e) {
+          return errorResponse('Invalid custom headers format', 400);
+        }
+      }
+    }
+
+    // 处理subscription-userinfo响应头（从前台传来的格式）
+    if (updateData.subscriptionInfo !== undefined) {
+      const subscriptionUserinfo = buildSubscriptionUserinfo(updateData.subscriptionInfo);
+      if (subscriptionUserinfo) {
+        if (!linkData.customHeaders) linkData.customHeaders = {};
+        linkData.customHeaders['subscription-userinfo'] = subscriptionUserinfo;
+      } else {
+        if (linkData.customHeaders) {
+          delete linkData.customHeaders['subscription-userinfo'];
+        }
+      }
+    }
+
+    // 处理content-disposition响应头（从前台传来的格式）
+    if (updateData.contentDisposition !== undefined) {
+      const contentDisposition = buildContentDisposition(updateData.contentDisposition);
+      if (contentDisposition) {
+        if (!linkData.customHeaders) linkData.customHeaders = {};
+        linkData.customHeaders['content-disposition'] = contentDisposition;
+      } else {
+        if (linkData.customHeaders) {
+          delete linkData.customHeaders['content-disposition'];
+        }
+      }
+    }
+
     // 更新时间戳
     linkData.updatedAt = getCurrentTimestamp();
 
@@ -196,6 +299,7 @@ async function updateLink(request, kv, linkData) {
       currentVisits: linkData.currentVisits,
       expiresAt: linkData.expiresAt,
       accessMode: linkData.accessMode,
+      customHeaders: linkData.customHeaders,
       tags: linkData.tags,
       isActive: linkData.isActive,
       updatedAt: linkData.updatedAt
@@ -230,6 +334,67 @@ async function deleteLink(kv, shortKey) {
     console.error('Delete link error:', error);
     return errorResponse('Failed to delete link', 500, 500);
   }
+}
+
+/**
+ * 构建subscription-userinfo响应头
+ */
+function buildSubscriptionUserinfo(subscriptionInfo) {
+  if (!subscriptionInfo || typeof subscriptionInfo !== 'object') {
+    return null;
+  }
+
+  const { upload, download, total, expire } = subscriptionInfo;
+  if (!upload && !download && !total && !expire) {
+    return null;
+  }
+
+  const parts = [];
+
+  // 转换GB到字节
+  if (upload) {
+    const uploadBytes = Math.round(parseFloat(upload) * 1024 * 1024 * 1024);
+    parts.push(`upload=${uploadBytes}`);
+  } else {
+    parts.push('upload=0');
+  }
+
+  if (download) {
+    const downloadBytes = Math.round(parseFloat(download) * 1024 * 1024 * 1024);
+    parts.push(`download=${downloadBytes}`);
+  } else {
+    parts.push('download=0');
+  }
+
+  if (total) {
+    const totalBytes = Math.round(parseFloat(total) * 1024 * 1024 * 1024);
+    parts.push(`total=${totalBytes}`);
+  }
+
+  if (expire) {
+    const expireTimestamp = Math.floor(new Date(expire).getTime() / 1000);
+    parts.push(`expire=${expireTimestamp}`);
+  }
+
+  return parts.join('; ');
+}
+
+/**
+ * 构建content-disposition响应头
+ */
+function buildContentDisposition(contentDisposition) {
+  if (!contentDisposition || typeof contentDisposition !== 'object') {
+    return null;
+  }
+
+  const { type, filename } = contentDisposition;
+  if (!type || !filename) {
+    return null;
+  }
+
+  // URL编码文件名
+  const encodedFilename = encodeURIComponent(filename);
+  return `${type}; filename*=UTF-8''${encodedFilename}`;
 }
 
 /**

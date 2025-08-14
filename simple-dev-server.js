@@ -118,9 +118,29 @@ function serveStaticFile(filePath, res) {
 }
 
 // 处理 API 请求的简化版本
-async function handleAPI(pathname, method, body, res) {
+async function handleAPI(pathname, method, body, res, req = null) {
   try {
     let result;
+
+    // 简化的认证检查
+    const needsAuth = pathname.startsWith('/api/links') && (method === 'GET' || method === 'PUT' || method === 'DELETE');
+    const isAuthRequest = pathname.startsWith('/api/auth');
+
+    if (needsAuth && !isAuthRequest) {
+      // 简化版本：检查session cookie或直接允许（开发环境）
+      const cookies = req?.headers?.cookie || '';
+      const hasValidSession = cookies.includes('session=') || true; // 开发环境直接允许
+
+      if (!hasValidSession) {
+        result = {
+          success: false,
+          error: { message: 'Authentication required' }
+        };
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+        return;
+      }
+    }
     
     if (pathname === '/api/links' && method === 'POST') {
       // 创建短链接
@@ -191,9 +211,33 @@ async function handleAPI(pathname, method, body, res) {
           links: links.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         }
       };
+    } else if (pathname.startsWith('/api/links/') && method === 'GET') {
+      // 获取单个链接详情
+      const shortKey = pathname.split('/')[3];
+      const linkDataStr = mockKV.get(shortKey);
+
+      if (!linkDataStr) {
+        result = {
+          success: false,
+          error: { message: 'Link not found' }
+        };
+      } else {
+        try {
+          const linkData = JSON.parse(linkDataStr);
+          result = {
+            success: true,
+            data: linkData
+          };
+        } catch (e) {
+          result = {
+            success: false,
+            error: { message: 'Invalid link data format' }
+          };
+        }
+      }
     } else if (pathname.startsWith('/api/links/') && method === 'PUT') {
       // 更新链接
-      const shortKey = pathname.split('/')[3];
+      let shortKey = pathname.split('/')[3];
       const linkDataStr = mockKV.get(shortKey);
 
       if (!linkDataStr) {
@@ -205,7 +249,27 @@ async function handleAPI(pathname, method, body, res) {
         const linkData = JSON.parse(linkDataStr);
         const updateData = JSON.parse(body);
 
-        // 更新字段
+        // 更新所有字段 - 支持完整的字段修改
+        if (updateData.longUrl !== undefined) {
+          linkData.longUrl = updateData.longUrl;
+        }
+        if (updateData.shortKey !== undefined && updateData.shortKey !== linkData.shortKey) {
+          // 处理shortKey变更
+          const newShortKey = updateData.shortKey;
+          if (mockKV.has(newShortKey)) {
+            result = {
+              success: false,
+              error: { message: `Short key "${newShortKey}" already exists` }
+            };
+            res.writeHead(409, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(result));
+            return;
+          }
+          // 删除旧key，使用新key
+          mockKV.delete(shortKey);
+          linkData.shortKey = newShortKey;
+          shortKey = newShortKey; // 更新变量以便后续保存
+        }
         if (updateData.title !== undefined) {
           linkData.title = updateData.title;
         }
@@ -218,8 +282,47 @@ async function handleAPI(pathname, method, body, res) {
         if (updateData.currentVisits !== undefined) {
           linkData.currentVisits = Math.max(0, parseInt(updateData.currentVisits) || 0);
         }
+        if (updateData.expiryDays !== undefined && updateData.expiryDays) {
+          const days = parseInt(updateData.expiryDays);
+          linkData.expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+        }
+        if (updateData.password !== undefined) {
+          linkData.password = updateData.password; // 简化版本，不做哈希
+        }
+        if (updateData.accessMode !== undefined) {
+          linkData.accessMode = updateData.accessMode;
+        }
+        if (updateData.tags !== undefined) {
+          linkData.tags = updateData.tags;
+        }
         if (updateData.isActive !== undefined) {
           linkData.isActive = updateData.isActive;
+        }
+        if (updateData.customHeaders !== undefined) {
+          linkData.customHeaders = updateData.customHeaders;
+        }
+        if (updateData.subscriptionInfo !== undefined) {
+          // 构建subscription-userinfo响应头
+          const info = updateData.subscriptionInfo;
+          if (info.upload || info.download || info.total || info.expire) {
+            if (!linkData.customHeaders) linkData.customHeaders = {};
+            const parts = [];
+            if (info.upload) parts.push(`upload=${Math.round(parseFloat(info.upload) * 1024 * 1024 * 1024)}`);
+            else parts.push('upload=0');
+            if (info.download) parts.push(`download=${Math.round(parseFloat(info.download) * 1024 * 1024 * 1024)}`);
+            else parts.push('download=0');
+            if (info.total) parts.push(`total=${Math.round(parseFloat(info.total) * 1024 * 1024 * 1024)}`);
+            if (info.expire) parts.push(`expire=${Math.floor(new Date(info.expire).getTime() / 1000)}`);
+            linkData.customHeaders['subscription-userinfo'] = parts.join('; ');
+          }
+        }
+        if (updateData.contentDisposition !== undefined) {
+          // 构建content-disposition响应头
+          const disp = updateData.contentDisposition;
+          if (disp.type && disp.filename) {
+            if (!linkData.customHeaders) linkData.customHeaders = {};
+            linkData.customHeaders['content-disposition'] = `${disp.type}; filename*=UTF-8''${encodeURIComponent(disp.filename)}`;
+          }
         }
 
         linkData.updatedAt = new Date().toISOString();
@@ -653,6 +756,60 @@ function getSecureRedirectPage(targetUrl, title = '') {
 </html>`;
 }
 
+// 处理管理后台页面
+async function handleAdminPage(req, res) {
+  // 简化版本：直接导入admin.js的处理逻辑
+  try {
+    // 创建兼容的Request对象
+    const compatibleRequest = {
+      url: `http://localhost:8789${req.url}`,
+      method: req.method,
+      headers: {
+        get: (name) => req.headers[name.toLowerCase()],
+        has: (name) => name.toLowerCase() in req.headers,
+        entries: () => Object.entries(req.headers),
+        forEach: (callback) => {
+          for (const [key, value] of Object.entries(req.headers)) {
+            callback(value, key);
+          }
+        }
+      },
+      json: async () => ({}),
+      text: async () => '',
+      formData: async () => new Map()
+    };
+
+    // 模拟Cloudflare Workers的context对象
+    const context = {
+      request: compatibleRequest,
+      env: mockEnv
+    };
+
+    // 动态导入admin.js模块
+    const adminModule = await import('./functions/admin.js');
+    const response = await adminModule.onRequest(context);
+
+    // 处理响应
+    if (response.headers) {
+      for (const [key, value] of response.headers.entries()) {
+        res.setHeader(key, value);
+      }
+    }
+
+    res.writeHead(response.status || 200);
+
+    if (response.body) {
+      res.end(response.body);
+    } else {
+      res.end();
+    }
+  } catch (error) {
+    console.error('Admin page error:', error);
+    res.writeHead(500, { 'Content-Type': 'text/plain' });
+    res.end('Internal Server Error');
+  }
+}
+
 // 生成密码输入页面
 function getPasswordPage(shortKey, error = '') {
   return `
@@ -750,9 +907,12 @@ const server = http.createServer(async (req, res) => {
   // 路由处理
   if (pathname === '/') {
     serveStaticFile(path.join(__dirname, 'index.html'), res);
+  } else if (pathname === '/admin') {
+    // 管理后台页面 - 需要特殊处理，避免被当作短链接
+    await handleAdminPage(req, res);
   } else if (pathname.startsWith('/api/')) {
-    await handleAPI(pathname, req.method, body, res);
-  } else if (pathname.match(/^\/[a-zA-Z0-9]+$/)) {
+    await handleAPI(pathname, req.method, body, res, req);
+  } else if (pathname.match(/^\/[a-zA-Z0-9_-]+$/)) {
     const shortKey = pathname.substring(1);
     await handleShortLink(shortKey, parsedUrl.query, res, req);
   } else {

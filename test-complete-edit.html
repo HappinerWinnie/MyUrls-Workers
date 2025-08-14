@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>完整字段修改功能测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">完整字段修改功能测试</h1>
+        
+        <!-- 创建测试链接 -->
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+            <h2 class="text-xl font-semibold mb-4">1. 创建包含所有字段的测试链接</h2>
+            <button id="createTestLink" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                创建测试链接
+            </button>
+            <div id="createResult" class="mt-4"></div>
+        </div>
+
+        <!-- 测试修改功能 -->
+        <div class="bg-white p-6 rounded-lg shadow mb-8">
+            <h2 class="text-xl font-semibold mb-4">2. 测试后台修改功能</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">短链接Key:</label>
+                    <input type="text" id="testShortKey" placeholder="输入要测试的短链接key" 
+                           class="w-full px-3 py-2 border rounded">
+                </div>
+                <button id="testEdit" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                    测试修改功能
+                </button>
+            </div>
+            <div id="editResult" class="mt-4"></div>
+        </div>
+
+        <!-- 测试结果 -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-xl font-semibold mb-4">3. 测试结果</h2>
+            <div id="testResults" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <script>
+        // 创建测试链接
+        document.getElementById('createTestLink').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('createResult');
+            resultDiv.innerHTML = '<div class="text-blue-600">创建中...</div>';
+
+            try {
+                const testData = {
+                    longUrl: 'https://www.example.com/test-page',
+                    shortKey: 'test-' + Date.now(),
+                    title: '测试链接标题',
+                    maxVisits: 100,
+                    expiryDays: 30,
+                    password: 'test123',
+                    accessMode: 'proxy',
+                    customHeaders: {
+                        'subscription-userinfo': 'upload=0; download=1073741824; total=429496729600; expire=1735689600',
+                        'content-disposition': 'attachment; filename*=UTF-8\'\'config.yaml'
+                    }
+                };
+
+                const response = await axios.post('/api/links', testData);
+                
+                if (response.data.success) {
+                    const link = response.data.data;
+                    document.getElementById('testShortKey').value = link.shortKey;
+                    resultDiv.innerHTML = `
+                        <div class="text-green-600">
+                            <p>✅ 测试链接创建成功！</p>
+                            <p>短链接: <a href="/${link.shortKey}" target="_blank" class="text-blue-600 underline">${link.shortKey}</a></p>
+                            <p>包含字段: 标题、访问限制、密码、自定义响应头等</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="text-red-600">❌ 创建失败: ${response.data.error.message}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="text-red-600">❌ 创建失败: ${error.message}</div>`;
+            }
+        });
+
+        // 测试修改功能
+        document.getElementById('testEdit').addEventListener('click', async () => {
+            const shortKey = document.getElementById('testShortKey').value;
+            const resultDiv = document.getElementById('editResult');
+            const testResultsDiv = document.getElementById('testResults');
+            
+            if (!shortKey) {
+                alert('请输入短链接key');
+                return;
+            }
+
+            resultDiv.innerHTML = '<div class="text-blue-600">测试中...</div>';
+            testResultsDiv.innerHTML = '';
+
+            try {
+                // 1. 获取原始数据
+                const getResponse = await axios.get(`/api/links/${shortKey}`);
+                if (!getResponse.data.success) {
+                    throw new Error('获取链接失败: ' + getResponse.data.error.message);
+                }
+
+                const originalData = getResponse.data.data;
+                addTestResult('✅ 获取原始数据成功', 'text-green-600');
+
+                // 2. 测试修改所有字段
+                const updateData = {
+                    longUrl: 'https://www.updated-example.com/new-page',
+                    shortKey: shortKey + '-updated',
+                    title: '更新后的标题',
+                    description: '更新后的描述',
+                    maxVisits: 200,
+                    currentVisits: 5,
+                    expiryDays: 60,
+                    password: 'newpass123',
+                    accessMode: 'redirect',
+                    isActive: true,
+                    tags: ['测试', '更新', '完整功能'],
+                    subscriptionInfo: {
+                        upload: '2',
+                        download: '5',
+                        total: '500',
+                        expire: '2025-12-31'
+                    },
+                    contentDisposition: {
+                        type: 'attachment',
+                        filename: 'updated-config.yaml'
+                    },
+                    customHeaders: {
+                        'x-custom-header': 'test-value',
+                        'x-updated': 'true'
+                    }
+                };
+
+                const updateResponse = await axios.put(`/api/links/${shortKey}`, updateData);
+                
+                if (updateResponse.data.success) {
+                    addTestResult('✅ 所有字段修改成功', 'text-green-600');
+                    
+                    // 3. 验证修改结果
+                    const verifyResponse = await axios.get(`/api/links/${updateData.shortKey}`);
+                    if (verifyResponse.data.success) {
+                        const updatedData = verifyResponse.data.data;
+                        
+                        // 验证各个字段
+                        const checks = [
+                            { field: 'longUrl', expected: updateData.longUrl, actual: updatedData.longUrl },
+                            { field: 'shortKey', expected: updateData.shortKey, actual: updatedData.shortKey },
+                            { field: 'title', expected: updateData.title, actual: updatedData.title },
+                            { field: 'description', expected: updateData.description, actual: updatedData.description },
+                            { field: 'maxVisits', expected: updateData.maxVisits, actual: updatedData.maxVisits },
+                            { field: 'currentVisits', expected: updateData.currentVisits, actual: updatedData.currentVisits },
+                            { field: 'accessMode', expected: updateData.accessMode, actual: updatedData.accessMode },
+                            { field: 'isActive', expected: updateData.isActive, actual: updatedData.isActive }
+                        ];
+
+                        let allPassed = true;
+                        checks.forEach(check => {
+                            if (check.actual === check.expected) {
+                                addTestResult(`✅ ${check.field}: ${check.actual}`, 'text-green-600');
+                            } else {
+                                addTestResult(`❌ ${check.field}: 期望 ${check.expected}, 实际 ${check.actual}`, 'text-red-600');
+                                allPassed = false;
+                            }
+                        });
+
+                        // 检查自定义响应头
+                        if (updatedData.customHeaders) {
+                            addTestResult('✅ 自定义响应头已保存', 'text-green-600');
+                        } else {
+                            addTestResult('❌ 自定义响应头未保存', 'text-red-600');
+                            allPassed = false;
+                        }
+
+                        if (allPassed) {
+                            resultDiv.innerHTML = '<div class="text-green-600 font-semibold">🎉 所有测试通过！完整字段修改功能正常工作。</div>';
+                        } else {
+                            resultDiv.innerHTML = '<div class="text-yellow-600 font-semibold">⚠️ 部分测试失败，请检查上面的详细结果。</div>';
+                        }
+                    } else {
+                        addTestResult('❌ 验证修改结果失败', 'text-red-600');
+                    }
+                } else {
+                    addTestResult('❌ 修改失败: ' + updateResponse.data.error.message, 'text-red-600');
+                }
+
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="text-red-600">❌ 测试失败: ${error.message}</div>`;
+                addTestResult('❌ 测试异常: ' + error.message, 'text-red-600');
+            }
+        });
+
+        function addTestResult(message, className) {
+            const testResultsDiv = document.getElementById('testResults');
+            const div = document.createElement('div');
+            div.className = className;
+            div.textContent = message;
+            testResultsDiv.appendChild(div);
+        }
+    </script>
+</body>
+</html>

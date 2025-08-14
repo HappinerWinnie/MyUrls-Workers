@@ -496,10 +496,10 @@ function getAdminPage() {
 
         <!-- 编辑链接模态框 -->
         <div v-if="showEditModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div class="relative top-20 mx-auto p-5 border w-11/12 md:w-1/2 lg:w-1/3 shadow-lg rounded-md bg-white">
+            <div class="relative top-10 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 xl:w-1/2 shadow-lg rounded-md bg-white max-h-screen overflow-y-auto">
                 <div class="mt-3">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-medium text-gray-900">编辑链接</h3>
+                        <h3 class="text-lg font-medium text-gray-900">编辑链接 - 完整字段修改</h3>
                         <button @click="closeEditModal" class="text-gray-400 hover:text-gray-600">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -507,67 +507,184 @@ function getAdminPage() {
                         </button>
                     </div>
 
-                    <form @submit.prevent="updateLink" class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">短链接</label>
-                            <input type="text" :value="editingLink.shortKey" readonly
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
+                    <form @submit.prevent="updateLink" class="space-y-6">
+                        <!-- 基础信息 -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-medium text-gray-900 mb-3">基础信息</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">短链接别名</label>
+                                    <input type="text" v-model="editingLink.shortKey"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                    <p class="text-xs text-gray-500 mt-1">修改后原链接将失效</p>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">目标URL</label>
+                                    <input type="url" v-model="editingLink.longUrl"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                    <p class="text-xs text-gray-500 mt-1">可以修改目标链接</p>
+                                </div>
+                            </div>
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">目标URL</label>
-                            <input type="url" :value="editingLink.longUrl" readonly
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
+                        <!-- 内容信息 -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-medium text-gray-900 mb-3">内容信息</h4>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">标题</label>
+                                    <input type="text" v-model="editingLink.title"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
+                                    <textarea v-model="editingLink.description" rows="3"
+                                              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">标签</label>
+                                    <input type="text" v-model="editingLink.tagsString" placeholder="用逗号分隔多个标签"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                    <p class="text-xs text-gray-500 mt-1">例如: 工具,网站,推荐</p>
+                                </div>
+                            </div>
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">标题</label>
-                            <input type="text" v-model="editingLink.title"
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                        </div>
+                        <!-- 访问控制 -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-medium text-gray-900 mb-3">访问控制</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">访问次数限制</label>
+                                    <input type="number" v-model="editingLink.maxVisits" min="-1"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                    <p class="text-xs text-gray-500 mt-1">-1表示无限制</p>
+                                    <div v-if="editingLink.maxVisits !== originalMaxVisits" class="mt-2 p-2 bg-blue-50 rounded-md">
+                                        <p class="text-sm text-blue-700">
+                                            <span v-if="editingLink.maxVisits > originalMaxVisits">
+                                                将增加 {{ editingLink.maxVisits - originalMaxVisits }} 次访问机会
+                                            </span>
+                                            <span v-else-if="editingLink.maxVisits < originalMaxVisits && editingLink.maxVisits >= editingLink.currentVisits">
+                                                将减少 {{ originalMaxVisits - editingLink.maxVisits }} 次访问机会
+                                            </span>
+                                            <span v-else-if="editingLink.maxVisits < editingLink.currentVisits && editingLink.maxVisits > 0">
+                                                ⚠️ 新限制小于当前访问次数，链接将立即失效
+                                            </span>
+                                        </p>
+                                    </div>
+                                </div>
 
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">描述</label>
-                            <textarea v-model="editingLink.description" rows="3"
-                                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">访问次数限制</label>
-                                <input type="number" v-model="editingLink.maxVisits" min="-1"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                                <p class="text-xs text-gray-500 mt-1">-1表示无限制</p>
-                                <div v-if="editingLink.maxVisits !== originalMaxVisits" class="mt-2 p-2 bg-blue-50 rounded-md">
-                                    <p class="text-sm text-blue-700">
-                                        <span v-if="editingLink.maxVisits > originalMaxVisits">
-                                            将增加 {{ editingLink.maxVisits - originalMaxVisits }} 次访问机会
-                                        </span>
-                                        <span v-else-if="editingLink.maxVisits < originalMaxVisits && editingLink.maxVisits >= editingLink.currentVisits">
-                                            将减少 {{ originalMaxVisits - editingLink.maxVisits }} 次访问机会
-                                        </span>
-                                        <span v-else-if="editingLink.maxVisits < editingLink.currentVisits && editingLink.maxVisits > 0">
-                                            ⚠️ 新限制小于当前访问次数，链接将立即失效
-                                        </span>
-                                    </p>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">当前访问次数</label>
+                                    <input type="number" v-model="editingLink.currentVisits" min="0"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                    <p class="text-xs text-gray-500 mt-1">可以重置访问计数</p>
                                 </div>
                             </div>
 
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">当前访问次数</label>
-                                <input type="number" v-model="editingLink.currentVisits" min="0"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                                <p class="text-xs text-gray-500 mt-1">可以重置访问计数</p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">有效期（天）</label>
+                                    <input type="number" v-model="editingLink.expiryDays" min="0" placeholder="留空表示永不过期"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                    <p class="text-xs text-gray-500 mt-1">从现在开始计算</p>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">访问密码</label>
+                                    <input type="password" v-model="editingLink.password" placeholder="留空表示无密码"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                    <p class="text-xs text-gray-500 mt-1">设置后访问需要密码</p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">访问模式</label>
+                                    <select v-model="editingLink.accessMode"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                        <option value="redirect">直接跳转</option>
+                                        <option value="proxy">代理访问</option>
+                                        <option value="iframe">嵌入模式</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">链接状态</label>
+                                    <select v-model="editingLink.isActive"
+                                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                        <option :value="true">激活</option>
+                                        <option :value="false">禁用</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">链接状态</label>
-                            <select v-model="editingLink.isActive"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
-                                <option :value="true">激活</option>
-                                <option :value="false">禁用</option>
-                            </select>
+                        <!-- 自定义响应头 -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-md font-medium text-gray-900 mb-3">自定义响应头设置</h4>
+
+                            <!-- Subscription-Userinfo 设置 -->
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">订阅用户信息 (subscription-userinfo)</label>
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">上传 (GB)</label>
+                                        <input v-model="editingLink.subscriptionInfo.upload" type="number" min="0" step="0.01" placeholder="0"
+                                               class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">下载 (GB)</label>
+                                        <input v-model="editingLink.subscriptionInfo.download" type="number" min="0" step="0.01" placeholder="0"
+                                               class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">总流量 (GB)</label>
+                                        <input v-model="editingLink.subscriptionInfo.total" type="number" min="0" step="0.01" placeholder="400"
+                                               class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">到期时间</label>
+                                        <input v-model="editingLink.subscriptionInfo.expire" type="date"
+                                               class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500">用于Clash订阅链接显示流量使用情况</p>
+                            </div>
+
+                            <!-- Content-Disposition 设置 -->
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">文件下载设置 (content-disposition)</label>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">处理方式</label>
+                                        <select v-model="editingLink.contentDisposition.type"
+                                                class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                                            <option value="">不设置</option>
+                                            <option value="attachment">下载文件 (attachment)</option>
+                                            <option value="inline">内联显示 (inline)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">文件名</label>
+                                        <input v-model="editingLink.contentDisposition.filename" type="text" placeholder="config.yaml"
+                                               :disabled="!editingLink.contentDisposition.type"
+                                               class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50">
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">设置文件下载行为和文件名</p>
+                            </div>
+
+                            <!-- 其他自定义响应头 -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">其他自定义响应头 (JSON格式)</label>
+                                <textarea v-model="editingLink.customHeadersJson" rows="3" placeholder='{"header-name": "header-value"}'
+                                          class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"></textarea>
+                                <p class="text-xs text-gray-500 mt-1">JSON格式的自定义响应头，会与上面的设置合并</p>
+                            </div>
                         </div>
 
                         <div class="flex justify-end space-x-3 pt-4">
@@ -607,6 +724,7 @@ function getAdminPage() {
                     showEditModal: false,
                     editingLink: {},
                     originalMaxVisits: 0,
+                    originalShortKey: '',
                     newLink: {
                         longUrl: '',
                         shortKey: '',
@@ -706,6 +824,16 @@ function getAdminPage() {
                 },
                 
                 editLink(link) {
+                    // 解析自定义响应头
+                    const customHeaders = link.customHeaders || {};
+                    const subscriptionInfo = this.parseSubscriptionUserinfo(customHeaders['subscription-userinfo']);
+                    const contentDisposition = this.parseContentDisposition(customHeaders['content-disposition']);
+
+                    // 过滤掉已处理的响应头，剩余的作为其他自定义响应头
+                    const otherHeaders = { ...customHeaders };
+                    delete otherHeaders['subscription-userinfo'];
+                    delete otherHeaders['content-disposition'];
+
                     this.editingLink = {
                         id: link.id,
                         shortKey: link.shortKey,
@@ -714,9 +842,17 @@ function getAdminPage() {
                         description: link.description || '',
                         maxVisits: link.maxVisits,
                         currentVisits: link.currentVisits,
-                        isActive: link.isActive
+                        expiryDays: '', // 重新设置有效期
+                        password: '', // 不显示现有密码
+                        accessMode: link.accessMode || 'redirect',
+                        isActive: link.isActive,
+                        tagsString: (link.tags || []).join(', '),
+                        subscriptionInfo: subscriptionInfo,
+                        contentDisposition: contentDisposition,
+                        customHeadersJson: Object.keys(otherHeaders).length > 0 ? JSON.stringify(otherHeaders, null, 2) : ''
                     };
                     this.originalMaxVisits = link.maxVisits;
+                    this.originalShortKey = link.shortKey;
                     this.showEditModal = true;
                 },
 
@@ -724,20 +860,47 @@ function getAdminPage() {
                     this.showEditModal = false;
                     this.editingLink = {};
                     this.originalMaxVisits = 0;
+                    this.originalShortKey = '';
                 },
 
                 async updateLink() {
                     this.updating = true;
                     try {
+                        // 前端验证
+                        const validationError = this.validateUpdateData();
+                        if (validationError) {
+                            alert(validationError);
+                            return;
+                        }
+
+                        // 构建更新数据
                         const updateData = {
+                            longUrl: this.editingLink.longUrl,
+                            shortKey: this.editingLink.shortKey,
                             title: this.editingLink.title,
                             description: this.editingLink.description,
                             maxVisits: parseInt(this.editingLink.maxVisits),
                             currentVisits: parseInt(this.editingLink.currentVisits),
-                            isActive: this.editingLink.isActive
+                            expiryDays: this.editingLink.expiryDays ? parseInt(this.editingLink.expiryDays) : null,
+                            password: this.editingLink.password || null,
+                            accessMode: this.editingLink.accessMode,
+                            isActive: this.editingLink.isActive,
+                            tags: this.editingLink.tagsString ? this.editingLink.tagsString.split(',').map(tag => tag.trim()).filter(tag => tag) : [],
+                            subscriptionInfo: this.editingLink.subscriptionInfo,
+                            contentDisposition: this.editingLink.contentDisposition
                         };
 
-                        const response = await axios.put('/api/links/' + this.editingLink.shortKey, updateData);
+                        // 处理其他自定义响应头
+                        if (this.editingLink.customHeadersJson) {
+                            try {
+                                updateData.customHeaders = JSON.parse(this.editingLink.customHeadersJson);
+                            } catch (e) {
+                                alert('自定义响应头JSON格式错误，请检查');
+                                return;
+                            }
+                        }
+
+                        const response = await axios.put('/api/links/' + this.originalShortKey, updateData);
                         if (response.data.success) {
                             await this.loadLinks();
                             this.closeEditModal();
@@ -833,6 +996,132 @@ function getAdminPage() {
                     } catch (error) {
                         console.error('Logout failed:', error);
                     }
+                },
+
+                // 解析subscription-userinfo响应头
+                parseSubscriptionUserinfo(headerValue) {
+                    if (!headerValue) {
+                        return { upload: '', download: '', total: '', expire: '' };
+                    }
+
+                    const info = { upload: '', download: '', total: '', expire: '' };
+                    const parts = headerValue.split(';').map(part => part.trim());
+
+                    parts.forEach(part => {
+                        const [key, value] = part.split('=');
+                        if (key && value) {
+                            switch (key.trim()) {
+                                case 'upload':
+                                    info.upload = (parseInt(value) / (1024 * 1024 * 1024)).toFixed(2);
+                                    break;
+                                case 'download':
+                                    info.download = (parseInt(value) / (1024 * 1024 * 1024)).toFixed(2);
+                                    break;
+                                case 'total':
+                                    info.total = (parseInt(value) / (1024 * 1024 * 1024)).toFixed(2);
+                                    break;
+                                case 'expire':
+                                    const date = new Date(parseInt(value) * 1000);
+                                    info.expire = date.toISOString().split('T')[0];
+                                    break;
+                            }
+                        }
+                    });
+
+                    return info;
+                },
+
+                // 解析content-disposition响应头
+                parseContentDisposition(headerValue) {
+                    if (!headerValue) {
+                        return { type: '', filename: '' };
+                    }
+
+                    const parts = headerValue.split(';').map(part => part.trim());
+                    const result = { type: '', filename: '' };
+
+                    if (parts[0]) {
+                        result.type = parts[0];
+                    }
+
+                    parts.forEach(part => {
+                        if (part.startsWith("filename*=UTF-8''")) {
+                            result.filename = decodeURIComponent(part.substring(17));
+                        }
+                    });
+
+                    return result;
+                },
+
+                // 验证更新数据
+                validateUpdateData() {
+                    // 验证URL格式
+                    if (this.editingLink.longUrl) {
+                        try {
+                            const url = new URL(this.editingLink.longUrl);
+                            const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:'];
+                            if (dangerousProtocols.includes(url.protocol.toLowerCase())) {
+                                return '不允许使用危险的URL协议';
+                            }
+                        } catch (e) {
+                            return 'URL格式不正确';
+                        }
+                    }
+
+                    // 验证shortKey格式
+                    if (this.editingLink.shortKey) {
+                        const shortKey = this.editingLink.shortKey.trim();
+                        if (shortKey.length < 2 || shortKey.length > 50) {
+                            return '短链接别名长度必须在2-50个字符之间';
+                        }
+
+                        const validPattern = /^[a-zA-Z0-9_-]+$/;
+                        if (!validPattern.test(shortKey)) {
+                            return '短链接别名只能包含字母、数字、连字符和下划线';
+                        }
+
+                        const reservedKeys = ['api', 'admin', 'www', 'app', 'static', 'assets', 'public', 'private', 'system'];
+                        if (reservedKeys.includes(shortKey.toLowerCase())) {
+                            return '短链接别名 "' + shortKey + '" 是保留关键字，不能使用';
+                        }
+                    }
+
+                    // 验证访问次数
+                    if (this.editingLink.maxVisits !== undefined && this.editingLink.maxVisits !== '') {
+                        const maxVisits = parseInt(this.editingLink.maxVisits);
+                        if (isNaN(maxVisits) || (maxVisits < -1)) {
+                            return '访问次数限制必须是-1或正整数';
+                        }
+                    }
+
+                    if (this.editingLink.currentVisits !== undefined && this.editingLink.currentVisits !== '') {
+                        const currentVisits = parseInt(this.editingLink.currentVisits);
+                        if (isNaN(currentVisits) || currentVisits < 0) {
+                            return '当前访问次数必须是非负整数';
+                        }
+                    }
+
+                    // 验证有效期
+                    if (this.editingLink.expiryDays !== undefined && this.editingLink.expiryDays !== '') {
+                        const expiryDays = parseInt(this.editingLink.expiryDays);
+                        if (isNaN(expiryDays) || expiryDays < 1) {
+                            return '有效期必须是正整数';
+                        }
+                    }
+
+                    // 验证自定义响应头JSON格式
+                    if (this.editingLink.customHeadersJson) {
+                        try {
+                            const headers = JSON.parse(this.editingLink.customHeadersJson);
+                            if (typeof headers !== 'object' || Array.isArray(headers)) {
+                                return '自定义响应头必须是JSON对象格式';
+                            }
+                        } catch (e) {
+                            return '自定义响应头JSON格式错误';
+                        }
+                    }
+
+                    return null; // 验证通过
                 }
             }
         }).mount('#app');

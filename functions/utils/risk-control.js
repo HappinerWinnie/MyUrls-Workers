@@ -1,6 +1,25 @@
 // 风控系统工具函数
 import { generateUUID, getCurrentTimestamp } from './crypto.js';
 
+// 默认允许的国家列表
+const DEFAULT_ALLOWED_COUNTRIES = ['HK', 'JP', 'US', 'SG', 'TW'];
+
+// 国家名称映射
+const COUNTRY_NAMES = {
+  'HK': '香港',
+  'JP': '日本', 
+  'US': '美国',
+  'SG': '新加坡',
+  'TW': '台湾',
+  'CN': '中国',
+  'KR': '韩国',
+  'GB': '英国',
+  'DE': '德国',
+  'FR': '法国',
+  'CA': '加拿大',
+  'AU': '澳大利亚'
+};
+
 /**
  * 设备指纹生成（基于实际可用的请求头信息）
  */
@@ -564,6 +583,64 @@ function detectCrawler(userAgent) {
   ];
   
   return crawlerPatterns.some(pattern => ua.includes(pattern));
+}
+
+/**
+ * 检测访问者所在国家
+ */
+export function detectCountry(request) {
+  // 从Cloudflare请求头获取国家信息
+  const cfCountry = request.headers.get('cf-ipcountry') || '';
+  const cfCity = request.headers.get('cf-city') || '';
+  const cfRegion = request.headers.get('cf-region') || '';
+  
+  return {
+    country: cfCountry,
+    city: cfCity,
+    region: cfRegion,
+    countryName: COUNTRY_NAMES[cfCountry] || cfCountry
+  };
+}
+
+/**
+ * 检查国家是否在允许列表中
+ */
+export function isCountryAllowed(country, allowedCountries = DEFAULT_ALLOWED_COUNTRIES) {
+  if (!country) return false;
+  return allowedCountries.includes(country.toUpperCase());
+}
+
+/**
+ * 生成Mock节点响应（用于非允许国家的访问）
+ */
+export function generateMockNodeResponse(country, countryName) {
+  const mockNode = {
+    name: `请使用${countryName || country}节点访问本订阅`,
+    type: 'ss',
+    server: '127.0.0.1',
+    port: 8080,
+    cipher: 'aes-256-gcm',
+    password: 'mock-password',
+    udp: true,
+    remark: `当前节点: ${countryName || country} - 请切换到允许的国家节点`
+  };
+  
+  return {
+    proxies: [mockNode],
+    proxyGroups: [
+      {
+        name: 'PROXY',
+        type: 'select',
+        proxies: [mockNode.name]
+      }
+    ],
+    rules: [
+      'DOMAIN-SUFFIX,local,PROXY',
+      'IP-CIDR,127.0.0.0/8,PROXY',
+      'GEOIP,CN,DIRECT',
+      'MATCH,PROXY'
+    ]
+  };
 }
 
 /**

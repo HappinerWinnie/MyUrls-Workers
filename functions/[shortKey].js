@@ -8,7 +8,10 @@ import {
   recordVisit, 
   checkBlocked,
   detectAnomalies,
-  getVisitStats
+  getVisitStats,
+  detectCountry,
+  isCountryAllowed,
+  generateMockNodeResponse
 } from './utils/risk-control.js';
 
 export async function onRequest(context) {
@@ -67,6 +70,27 @@ export async function onRequest(context) {
   }
   if (blockedStatus.ipBlocked) {
     return forbiddenResponse(`IP已被封禁: ${blockedStatus.ipBlockReason}`);
+  }
+
+  // 检查国家限制
+  const countryInfo = detectCountry(request);
+  const allowedCountries = linkData.countryRestriction?.allowedCountries || ['HK', 'JP', 'US', 'SG', 'TW'];
+  const isCountryRestricted = linkData.countryRestriction?.enabled || false;
+  
+  if (isCountryRestricted && !isCountryAllowed(countryInfo.country, allowedCountries)) {
+    // 如果是代理工具访问，返回Mock节点
+    if (enhancedBrowserDetection.isProxyTool) {
+      const mockResponse = generateMockNodeResponse(countryInfo.country, countryInfo.countryName);
+      return new Response(JSON.stringify(mockResponse, null, 2), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    } else {
+      return forbiddenResponse(`当前地区 (${countryInfo.countryName || countryInfo.country}) 不允许访问此链接`);
+    }
   }
 
   // 检查UA过滤（增强版）

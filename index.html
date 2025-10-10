@@ -368,6 +368,43 @@
                 </div>
                 <p class="text-white text-xs opacity-75 mt-2 text-left">检测到异常访问时发送Telegram通知</p>
               </div>
+
+              <!-- 国家限制配置 -->
+              <div class="bg-white bg-opacity-10 rounded-lg p-4">
+                <h5 class="text-white text-sm font-medium mb-3">国家限制（可选）</h5>
+                <div class="space-y-3">
+                  <div class="flex items-center">
+                    <input
+                      v-model="countryRestriction.enabled"
+                      type="checkbox"
+                      class="mr-2 text-blue-600 focus:ring-blue-500"
+                    >
+                    <label class="text-white text-sm">启用国家限制</label>
+                  </div>
+                  <div v-if="countryRestriction.enabled" class="space-y-3">
+                    <div>
+                      <label class="block text-white text-xs mb-2 text-left">允许的国家/地区</label>
+                      <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        <label v-for="country in availableCountries" :key="country.code" class="flex items-center text-white text-sm">
+                          <input
+                            v-model="countryRestriction.allowedCountries"
+                            :value="country.code"
+                            type="checkbox"
+                            class="mr-2 text-blue-600 focus:ring-blue-500"
+                          >
+                          {{ country.name }}
+                        </label>
+                      </div>
+                    </div>
+                    <div class="text-white text-xs opacity-75">
+                      <p>• 非允许国家的浏览器访问将被拒绝</p>
+                      <p>• 非允许国家的代理工具访问将返回Mock节点</p>
+                      <p>• Mock节点会提示用户切换到正确的国家节点</p>
+                    </div>
+                  </div>
+                </div>
+                <p class="text-white text-xs opacity-75 mt-2 text-left">限制访问者的地理位置，防止滥用</p>
+              </div>
             </div>
 
             <!-- 自定义响应头设置 -->
@@ -592,6 +629,24 @@
             telegramChatId: '',
             alertThreshold: 70
           },
+          countryRestriction: {
+            enabled: false,
+            allowedCountries: ['HK', 'JP', 'US', 'SG', 'TW']
+          },
+          availableCountries: [
+            { code: 'HK', name: '香港' },
+            { code: 'JP', name: '日本' },
+            { code: 'US', name: '美国' },
+            { code: 'SG', name: '新加坡' },
+            { code: 'TW', name: '台湾' },
+            { code: 'CN', name: '中国' },
+            { code: 'KR', name: '韩国' },
+            { code: 'GB', name: '英国' },
+            { code: 'DE', name: '德国' },
+            { code: 'FR', name: '法国' },
+            { code: 'CA', name: '加拿大' },
+            { code: 'AU', name: '澳大利亚' }
+          ],
           showAdvanced: false,
           urlError: '',
           linkInfo: null
@@ -700,6 +755,11 @@
           alertThreshold: parseInt(this.riskAlert.alertThreshold) || 70
         };
 
+        const countryRestriction = {
+          enabled: this.countryRestriction.enabled,
+          allowedCountries: this.countryRestriction.allowedCountries || ['HK', 'JP', 'US', 'SG', 'TW']
+        };
+
         // 收集浏览器指纹信息
         let browserFingerprint = null;
         if (window.browserFingerprint) {
@@ -718,6 +778,7 @@
               visitLimits: Object.keys(visitLimits).length > 0 ? visitLimits : undefined,
               uaFilter: uaFilter.blockBrowsers || uaFilter.allowedPatterns.length > 0 || uaFilter.blockedPatterns.length > 0 ? uaFilter : undefined,
               riskAlert: riskAlert.enabled ? riskAlert : undefined,
+              countryRestriction: countryRestriction.enabled ? countryRestriction : undefined,
               browserFingerprint: browserFingerprint
             };
 
@@ -807,6 +868,10 @@
             telegramToken: '',
             telegramChatId: '',
             alertThreshold: 70
+          };
+          this.countryRestriction = {
+            enabled: false,
+            allowedCountries: ['HK', 'JP', 'US', 'SG', 'TW']
           };
           this.showAdvanced = false;
         },

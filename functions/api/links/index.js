@@ -148,6 +148,12 @@ async function createLink(request, kv, isAuthenticated) {
       alertThreshold: data.riskAlert?.alertThreshold || 70
     };
 
+    // 处理国家限制配置
+    const countryRestriction = {
+      enabled: data.countryRestriction?.enabled || false,
+      allowedCountries: data.countryRestriction?.allowedCountries || ['HK', 'JP', 'US', 'SG', 'TW']
+    };
+
     // 处理浏览器指纹信息
     const browserFingerprint = data.browserFingerprint || null;
 
@@ -178,6 +184,7 @@ async function createLink(request, kv, isAuthenticated) {
       visitLimits, // 风控访问限制配置
       uaFilter, // UA过滤配置
       riskAlert, // 风控告警配置
+      countryRestriction, // 国家限制配置
       browserFingerprint, // 浏览器指纹信息
       createdAt: getCurrentTimestamp(),
       updatedAt: getCurrentTimestamp(),

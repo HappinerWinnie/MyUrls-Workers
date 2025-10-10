@@ -14,10 +14,22 @@ export class Database {
    */
   async query(sql, params = []) {
     try {
+      console.log('Database query:', { sql, params });
       const result = await this.db.prepare(sql).bind(...params).all();
-      return result;
+      console.log('Database query result:', { 
+        success: result.success, 
+        meta: result.meta, 
+        resultsCount: result.results?.length || 0 
+      });
+      return result.results || [];
     } catch (error) {
-      console.error('Database query error:', error);
+      console.error('Database query error:', {
+        message: error.message,
+        stack: error.stack,
+        sql,
+        params,
+        error: error
+      });
       throw error;
     }
   }
@@ -136,16 +148,28 @@ export class LinkDB extends Database {
    * 获取所有链接
    */
   async getAllLinks(limit = 100, offset = 0) {
-    const sql = `
-      SELECT l.*, 
-             rcc.visit_limits, rcc.ua_filter, rcc.risk_alert, rcc.country_restriction
-      FROM links l
-      LEFT JOIN risk_control_configs rcc ON l.id = rcc.link_id
-      ORDER BY l.created_at DESC
-      LIMIT ? OFFSET ?
-    `;
-    
-    return await this.query(sql, [limit, offset]);
+    try {
+      const sql = `
+        SELECT * FROM links
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+      `;
+      
+      console.log('Executing getAllLinks query:', { sql, limit, offset });
+      const result = await this.query(sql, [limit, offset]);
+      console.log('getAllLinks result:', { count: result.length, result });
+      return result;
+    } catch (error) {
+      console.error('getAllLinks database error:', {
+        message: error.message,
+        stack: error.stack,
+        sql: 'SELECT * FROM links ORDER BY created_at DESC LIMIT ? OFFSET ?',
+        limit,
+        offset,
+        error: error
+      });
+      throw error;
+    }
   }
 
   /**

@@ -20,21 +20,33 @@ export async function onRequest(context) {
   const { request, env } = context;
   const db = env.DB;
 
-  // 处理OPTIONS预检请求
-  if (request.method === 'OPTIONS') {
-    return optionsResponse();
-  }
+  try {
+    // 处理OPTIONS预检请求
+    if (request.method === 'OPTIONS') {
+      return optionsResponse();
+    }
 
-  // 检查认证
-  const auth = await authMiddleware(request, env, db);
-  const isAuthenticated = auth && auth.isAuthenticated;
+    // 检查认证
+    const auth = await authMiddleware(request, env, db);
+    const isAuthenticated = auth && auth.isAuthenticated;
 
-  if (request.method === 'POST') {
-    return await createLink(request, db, isAuthenticated);
-  } else if (request.method === 'GET') {
-    return await getLinks(request, db, isAuthenticated);
-  } else {
-    return errorResponse('Method not allowed', 405, 405);
+    if (request.method === 'POST') {
+      return await createLink(request, db, isAuthenticated);
+    } else if (request.method === 'GET') {
+      return await getLinks(request, db, isAuthenticated);
+    } else {
+      return errorResponse('Method not allowed', 405, 405);
+    }
+  } catch (error) {
+    console.error('API request error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      method: request.method,
+      url: request.url,
+      error: error
+    });
+    return errorResponse(`API error: ${error.message}`, 500);
   }
 }
 
@@ -175,7 +187,8 @@ async function getLinks(request, db, isAuthenticated) {
     // 解析查询参数
     const url = new URL(request.url);
     const limit = parseInt(url.searchParams.get('limit')) || 50;
-    const offset = parseInt(url.searchParams.get('offset')) || 0;
+    const page = parseInt(url.searchParams.get('page')) || 1;
+    const offset = (page - 1) * limit;
     const search = url.searchParams.get('search') || '';
 
     // 获取链接列表
@@ -201,7 +214,16 @@ async function getLinks(request, db, isAuthenticated) {
     });
 
   } catch (error) {
-    console.error('Get links error:', error);
-    return errorResponse('Internal server error', 500);
+    console.error('Get links error:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      url: request.url,
+      limit,
+      offset,
+      search,
+      error: error
+    });
+    return errorResponse(`Internal server error: ${error.message}`, 500);
   }
 }

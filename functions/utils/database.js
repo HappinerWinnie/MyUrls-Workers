@@ -147,15 +147,20 @@ export class LinkDB extends Database {
   /**
    * 获取所有链接
    */
-  async getAllLinks(limit = 100, offset = 0) {
+  async getAllLinks(limit = 100, offset = 0, sortBy = 'created_at', sortOrder = 'desc') {
     try {
+      // 验证排序字段
+      const allowedSortFields = ['created_at', 'short_key', 'long_url', 'title', 'visit_count'];
+      const validSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
+      const validSortOrder = ['asc', 'desc'].includes(sortOrder.toLowerCase()) ? sortOrder.toUpperCase() : 'DESC';
+      
       const sql = `
         SELECT * FROM links
-        ORDER BY created_at DESC
+        ORDER BY ${validSortBy} ${validSortOrder}
         LIMIT ? OFFSET ?
       `;
       
-      console.log('Executing getAllLinks query:', { sql, limit, offset });
+      console.log('Executing getAllLinks query:', { sql, limit, offset, sortBy: validSortBy, sortOrder: validSortOrder });
       const result = await this.query(sql, [limit, offset]);
       console.log('getAllLinks result:', { count: result.length, result });
       return result;
@@ -163,9 +168,75 @@ export class LinkDB extends Database {
       console.error('getAllLinks database error:', {
         message: error.message,
         stack: error.stack,
-        sql: 'SELECT * FROM links ORDER BY created_at DESC LIMIT ? OFFSET ?',
+        sql: 'SELECT * FROM links ORDER BY ? ? LIMIT ? OFFSET ?',
         limit,
         offset,
+        sortBy,
+        sortOrder,
+        error: error
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * 搜索链接
+   */
+  async searchLinks(searchTerm, limit = 100, offset = 0, sortBy = 'created_at', sortOrder = 'desc') {
+    try {
+      // 验证排序字段
+      const allowedSortFields = ['created_at', 'short_key', 'long_url', 'title', 'visit_count'];
+      const validSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
+      const validSortOrder = ['asc', 'desc'].includes(sortOrder.toLowerCase()) ? sortOrder.toUpperCase() : 'DESC';
+      
+      const sql = `
+        SELECT * FROM links
+        WHERE short_key LIKE ? OR long_url LIKE ? OR title LIKE ? OR description LIKE ?
+        ORDER BY ${validSortBy} ${validSortOrder}
+        LIMIT ? OFFSET ?
+      `;
+      
+      const searchPattern = `%${searchTerm}%`;
+      console.log('Executing searchLinks query:', { sql, searchTerm, limit, offset, sortBy: validSortBy, sortOrder: validSortOrder });
+      const result = await this.query(sql, [searchPattern, searchPattern, searchPattern, searchPattern, limit, offset]);
+      console.log('searchLinks result:', { count: result.length, result });
+      return result;
+    } catch (error) {
+      console.error('searchLinks database error:', {
+        message: error.message,
+        stack: error.stack,
+        searchTerm,
+        limit,
+        offset,
+        sortBy,
+        sortOrder,
+        error: error
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * 获取统计信息
+   */
+  async getStats() {
+    try {
+      const totalLinks = await this.queryFirst('SELECT COUNT(*) as count FROM links');
+      const totalVisits = await this.queryFirst('SELECT COUNT(*) as count FROM access_logs');
+      const todayVisits = await this.queryFirst(`
+        SELECT COUNT(*) as count FROM access_logs 
+        WHERE DATE(visit_timestamp) = DATE('now')
+      `);
+      
+      return {
+        totalLinks: totalLinks?.count || 0,
+        totalVisits: totalVisits?.count || 0,
+        todayVisits: todayVisits?.count || 0
+      };
+    } catch (error) {
+      console.error('getStats database error:', {
+        message: error.message,
+        stack: error.stack,
         error: error
       });
       throw error;

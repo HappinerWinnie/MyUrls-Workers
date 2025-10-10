@@ -190,14 +190,18 @@ async function getLinks(request, db, isAuthenticated) {
     const page = parseInt(url.searchParams.get('page')) || 1;
     const offset = (page - 1) * limit;
     const search = url.searchParams.get('search') || '';
+    const sortBy = url.searchParams.get('sortBy') || 'createdAt';
+    const sortOrder = url.searchParams.get('sortOrder') || 'desc';
+
+    console.log('getLinks parameters:', { limit, page, offset, search, sortBy, sortOrder });
 
     // 获取链接列表
     let links;
     if (search) {
       // 搜索功能
-      links = await linkDB.searchLinks(search, limit, offset);
+      links = await linkDB.searchLinks(search, limit, offset, sortBy, sortOrder);
     } else {
-      links = await linkDB.getAllLinks(limit, offset);
+      links = await linkDB.getAllLinks(limit, offset, sortBy, sortOrder);
     }
 
     // 获取统计信息
@@ -219,9 +223,6 @@ async function getLinks(request, db, isAuthenticated) {
       stack: error.stack,
       name: error.name,
       url: request.url,
-      limit,
-      offset,
-      search,
       error: error
     });
     return errorResponse(`Internal server error: ${error.message}`, 500);

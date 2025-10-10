@@ -1,0 +1,12 @@
+name = "myurls-migrate"
+main = "simple-migrate.js"
+compatibility_date = "2025-07-31"
+
+[[kv_namespaces]]
+binding = "LINKS"
+id = "29dfc1dc70d2410f973d4fcc4f0dd1ea"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "myurls-db"
+database_id = "717236eb-d955-415c-a380-b8a2523efefd"

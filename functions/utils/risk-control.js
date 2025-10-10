@@ -611,6 +611,70 @@ export function isCountryAllowed(country, allowedCountries = DEFAULT_ALLOWED_COU
 }
 
 /**
+ * 获取链接的设备数量
+ */
+export async function getDeviceCount(shortKey, kv) {
+  try {
+    const deviceListKey = `link_devices:${shortKey}`;
+    const deviceListStr = await kv.get(deviceListKey);
+    
+    if (!deviceListStr) {
+      return 0;
+    }
+    
+    const deviceList = JSON.parse(deviceListStr);
+    return deviceList.length;
+  } catch (error) {
+    console.error('Error getting device count:', error);
+    return 0;
+  }
+}
+
+/**
+ * 检查设备是否已存在
+ */
+export async function isDeviceExists(shortKey, deviceId, kv) {
+  try {
+    const deviceListKey = `link_devices:${shortKey}`;
+    const deviceListStr = await kv.get(deviceListKey);
+    
+    if (!deviceListStr) {
+      return false;
+    }
+    
+    const deviceList = JSON.parse(deviceListStr);
+    return deviceList.includes(deviceId);
+  } catch (error) {
+    console.error('Error checking device exists:', error);
+    return false;
+  }
+}
+
+/**
+ * 添加设备到链接的设备列表
+ */
+export async function addDeviceToLink(shortKey, deviceId, kv) {
+  try {
+    const deviceListKey = `link_devices:${shortKey}`;
+    const deviceListStr = await kv.get(deviceListKey);
+    
+    let deviceList = [];
+    if (deviceListStr) {
+      deviceList = JSON.parse(deviceListStr);
+    }
+    
+    if (!deviceList.includes(deviceId)) {
+      deviceList.push(deviceId);
+      await kv.put(deviceListKey, JSON.stringify(deviceList), {
+        expirationTtl: 30 * 24 * 60 * 60 // 30天
+      });
+    }
+  } catch (error) {
+    console.error('Error adding device to link:', error);
+  }
+}
+
+/**
  * 生成Mock节点响应（用于非允许国家的访问）
  */
 export function generateMockNodeResponse(country, countryName) {

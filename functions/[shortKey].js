@@ -11,7 +11,10 @@ import {
   getVisitStats,
   detectCountry,
   isCountryAllowed,
-  generateMockNodeResponse
+  generateMockNodeResponse,
+  getDeviceCount,
+  isDeviceExists,
+  addDeviceToLink
 } from './utils/risk-control.js';
 
 export async function onRequest(context) {
@@ -140,8 +143,25 @@ export async function onRequest(context) {
     return forbiddenResponse(violation.message);
   }
 
-  // 检查传统访问次数限制（向后兼容）
-  if (linkData.maxVisits > 0 && linkData.currentVisits >= linkData.maxVisits) {
+  // 检查访问次数限制（根据模式）
+  if (linkData.visitLimitMode === 'total' && linkData.maxVisits > 0 && linkData.currentVisits >= linkData.maxVisits) {
+    return forbiddenResponse("访问次数已达上限");
+  }
+  
+  // 检查设备数量限制
+  if (linkData.visitLimitMode === 'devices' && linkData.maxDevices > 0) {
+    const deviceCount = await getDeviceCount(shortKey, kv);
+    if (deviceCount >= linkData.maxDevices) {
+      // 检查当前设备是否已存在
+      const isExistingDevice = await isDeviceExists(shortKey, deviceInfo.deviceId, kv);
+      if (!isExistingDevice) {
+        return forbiddenResponse(`设备数量已达上限 (${linkData.maxDevices}个设备)`);
+      }
+    }
+  }
+  
+  // 向后兼容：检查传统访问次数限制
+  if (!linkData.visitLimitMode && linkData.maxVisits > 0 && linkData.currentVisits >= linkData.maxVisits) {
     return forbiddenResponse("This link has reached its visit limit");
   }
 
@@ -419,6 +439,11 @@ async function updateVisitStats(linkData, kv, request, analytics, deviceInfo, ip
     linkData.currentVisits++;
     linkData.totalVisits++;
     linkData.lastVisitAt = new Date().toISOString();
+
+    // 如果是设备限制模式，添加设备到设备列表
+    if (linkData.visitLimitMode === 'devices') {
+      await addDeviceToLink(linkData.shortKey, deviceInfo.deviceId, kv);
+    }
 
     // 记录风控访问信息
     const visitLog = await recordVisit(linkData, deviceInfo, ipAddress, kv);

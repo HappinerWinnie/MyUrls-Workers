@@ -443,6 +443,7 @@ function getAdminPage() {
                                         {{ formatDate(link.createdAt) }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                        <button @click="viewAccessLogs(link)" class="text-purple-600 hover:text-purple-900 mr-3">访问记录</button>
                                         <button @click="editLink(link)" class="text-green-600 hover:text-green-900 mr-3">编辑</button>
                                         <button @click="copyLink(link)" class="text-blue-600 hover:text-blue-900 mr-3">复制</button>
                                         <button @click="deleteLink(link)" class="text-red-600 hover:text-red-900">删除</button>
@@ -481,6 +482,9 @@ function getAdminPage() {
                             </div>
 
                             <div class="flex space-x-3">
+                                <button @click="viewAccessLogs(link)" class="text-purple-600 hover:text-purple-900 text-sm font-medium">
+                                    访问记录
+                                </button>
                                 <button @click="editLink(link)" class="text-green-600 hover:text-green-900 text-sm font-medium">
                                     编辑
                                 </button>

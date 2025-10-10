@@ -5,11 +5,15 @@ compatibility_date = "2025-07-31"
 # Pages 项目配置
 pages_build_output_dir = "."
 
-# KV 命名空间绑定（将在 Pages 控制台中配置）
-# 注意：Pages 项目的 KV 绑定需要在 Pages 控制台中手动配置
-# 这里的配置主要用于 wrangler dev 命令
+# D1 数据库绑定
+[[d1_databases]]
+binding = "DB"
+database_name = "myurls-db"
+database_id = "717236eb-d955-415c-a380-b8a2523efefd"
+
+# KV 命名空间绑定（保留用于缓存和会话）
 [[kv_namespaces]]
-binding = "LINKS"
+binding = "CACHE"
 id = "29dfc1dc70d2410f973d4fcc4f0dd1ea"
 
 # 环境变量（将在 Pages 控制台中配置）

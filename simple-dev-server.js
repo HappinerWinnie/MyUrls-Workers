@@ -350,6 +350,51 @@ async function handleAPI(pathname, method, body, res, req = null) {
           error: { message: 'Link not found' }
         };
       }
+    } else if (pathname === '/api/access-logs' && method === 'GET') {
+      // 获取访问日志
+      const urlObj = new URL(`http://localhost:8789${req.url}`);
+      const action = urlObj.searchParams.get('action') || 'list';
+      const limit = parseInt(urlObj.searchParams.get('limit')) || 20;
+      
+      if (action === 'list') {
+        const logs = await listAccessLogs(mockEnv.LINKS, limit);
+        const stats = await getAccessStats(mockEnv.LINKS);
+        result = {
+          success: true,
+          data: {
+            logs,
+            stats
+          }
+        };
+      } else if (action === 'stats') {
+        const stats = await getAccessStats(mockEnv.LINKS);
+        result = {
+          success: true,
+          data: stats
+        };
+      } else {
+        result = {
+          success: false,
+          error: { message: 'Invalid action' }
+        };
+      }
+    } else if (pathname === '/api/access-logs' && method === 'POST') {
+      // 清空访问日志
+      const urlObj = new URL(`http://localhost:8789${req.url}`);
+      const action = urlObj.searchParams.get('action');
+      
+      if (action === 'clear') {
+        await clearAccessLogs(mockEnv.LINKS);
+        result = {
+          success: true,
+          message: '访问日志已清空'
+        };
+      } else {
+        result = {
+          success: false,
+          error: { message: 'Invalid action' }
+        };
+      }
     } else {
       result = {
         success: false,
@@ -756,6 +801,294 @@ function getSecureRedirectPage(targetUrl, title = '') {
 </html>`;
 }
 
+// 处理调试请求信息
+async function handleDebugRequest(req, res) {
+  try {
+    // 收集所有可用的请求信息
+    const requestInfo = {
+      // 基本信息
+      method: req.method,
+      url: req.url,
+      headers: {},
+      
+      // 代理工具检测
+      isProxyTool: false,
+      proxyToolType: 'Unknown',
+      proxyToolFeatures: {},
+      
+      // 原始请求头（完整记录）
+      rawHeaders: {},
+      
+      // 请求头信息
+      userAgent: req.headers['user-agent'] || '',
+      acceptLanguage: req.headers['accept-language'] || '',
+      acceptEncoding: req.headers['accept-encoding'] || '',
+      accept: req.headers['accept'] || '',
+      connection: req.headers['connection'] || '',
+      cacheControl: req.headers['cache-control'] || '',
+      referer: req.headers['referer'] || '',
+      origin: req.headers['origin'] || '',
+      
+      // 现代浏览器特征头
+      secFetchSite: req.headers['sec-fetch-site'] || '',
+      secFetchMode: req.headers['sec-fetch-mode'] || '',
+      secFetchDest: req.headers['sec-fetch-dest'] || '',
+      secFetchUser: req.headers['sec-fetch-user'] || '',
+      
+      // Chrome客户端提示头
+      secChUa: req.headers['sec-ch-ua'] || '',
+      secChUaMobile: req.headers['sec-ch-ua-mobile'] || '',
+      secChUaPlatform: req.headers['sec-ch-ua-platform'] || '',
+      secChUaPlatformVersion: req.headers['sec-ch-ua-platform-version'] || '',
+      secChUaArch: req.headers['sec-ch-ua-arch'] || '',
+      secChUaModel: req.headers['sec-ch-ua-model'] || '',
+      secChUaBitness: req.headers['sec-ch-ua-bitness'] || '',
+      secChUaFullVersion: req.headers['sec-ch-ua-full-version'] || '',
+      secChUaFullVersionList: req.headers['sec-ch-ua-full-version-list'] || '',
+      secChUaWOW64: req.headers['sec-ch-ua-wow64'] || '',
+      secChUaFormFactor: req.headers['sec-ch-ua-form-factor'] || '',
+      secChUaViewportWidth: req.headers['sec-ch-ua-viewport-width'] || '',
+      secChUaViewportHeight: req.headers['sec-ch-ua-viewport-height'] || '',
+      
+      // 其他重要头
+      dnt: req.headers['dnt'] || '',
+      upgradeInsecureRequests: req.headers['upgrade-insecure-requests'] || '',
+      xForwardedFor: req.headers['x-forwarded-for'] || '',
+      xRealIp: req.headers['x-real-ip'] || '',
+      xForwardedProto: req.headers['x-forwarded-proto'] || '',
+      xForwardedHost: req.headers['x-forwarded-host'] || '',
+      cfConnectingIp: req.headers['cf-connecting-ip'] || '',
+      cfRay: req.headers['cf-ray'] || '',
+      cfCountry: req.headers['cf-ipcountry'] || '',
+      cfTimezone: req.headers['cf-timezone'] || '',
+      cfVisitor: req.headers['cf-visitor'] || '',
+      
+      // 自定义头（可能来自代理工具）
+      xCustomHeaders: {},
+      
+      // 请求体信息
+      contentLength: req.headers['content-length'] || '0',
+      contentType: req.headers['content-type'] || '',
+      
+      // 时间戳
+      timestamp: new Date().toISOString()
+    };
+
+    // 遍历所有请求头，原封不动地记录
+    const allHeaders = {};
+    const rawHeaders = {};
+    for (const [key, value] of Object.entries(req.headers)) {
+      allHeaders[key] = value;
+      rawHeaders[key] = value;
+      
+      // 检查自定义头
+      if (key.startsWith('x-') || key.startsWith('X-')) {
+        requestInfo.xCustomHeaders[key] = value;
+      }
+    }
+
+    // 将原始请求头添加到requestInfo
+    requestInfo.rawHeaders = rawHeaders;
+    requestInfo.headers = allHeaders;
+
+    // 检测代理工具
+    const proxyDetection = detectProxyTool(req);
+    requestInfo.isProxyTool = proxyDetection.isProxyTool;
+    requestInfo.proxyToolType = proxyDetection.proxyToolType;
+    requestInfo.proxyToolFeatures = proxyDetection.features;
+
+    // 创建调试信息对象
+    const debugInfo = {
+      success: true,
+      message: '调试信息收集成功',
+      timestamp: new Date().toISOString(),
+      requestInfo,
+      cfInfo: {
+        // 模拟Cloudflare信息
+        country: req.headers['cf-ipcountry'] || 'Unknown',
+        timezone: req.headers['cf-timezone'] || 'Unknown',
+        ray: req.headers['cf-ray'] || 'Unknown',
+        visitor: req.headers['cf-visitor'] || 'Unknown',
+        connectingIp: req.headers['cf-connecting-ip'] || req.connection?.remoteAddress || 'Unknown'
+      },
+      stats: {
+        totalHeaders: Object.keys(req.headers).length,
+        customHeaders: Object.keys(requestInfo.xCustomHeaders).length,
+        hasModernBrowserFeatures: hasModernBrowserFeatures(req),
+        hasProxyFeatures: proxyDetection.features.hasCustomHeaders || proxyDetection.features.hasProxyHeaders
+      }
+    };
+
+    // 记录访问日志（如果KV可用）
+    await recordAccessLog(debugInfo, mockEnv);
+
+    // 返回调试信息
+    res.writeHead(200, { 
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    });
+    res.end(JSON.stringify(debugInfo, null, 2));
+
+  } catch (error) {
+    console.error('调试请求处理失败:', error);
+    res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: false,
+      message: '调试请求处理失败',
+      error: error.message
+    }, null, 2));
+  }
+}
+
+// 检测代理工具
+function detectProxyTool(req) {
+  const userAgent = req.headers['user-agent'] || '';
+  const features = {
+    hasCustomHeaders: false,
+    hasProxyHeaders: false,
+    missingBrowserFeatures: false,
+    suspiciousPatterns: []
+  };
+
+  // 检查自定义头
+  const customHeaders = Object.keys(req.headers).filter(h => 
+    h.startsWith('x-') || h.startsWith('X-')
+  );
+  features.hasCustomHeaders = customHeaders.length > 0;
+
+  // 检查代理相关头
+  const proxyHeaders = ['x-forwarded-for', 'x-real-ip', 'x-forwarded-proto', 'cf-connecting-ip'];
+  features.hasProxyHeaders = proxyHeaders.some(h => req.headers[h]);
+
+  // 检查缺失的浏览器特征
+  const browserHeaders = ['sec-fetch-site', 'sec-fetch-mode', 'sec-ch-ua', 'dnt'];
+  features.missingBrowserFeatures = !browserHeaders.some(h => req.headers[h]);
+
+  // 检测代理工具类型
+  let isProxyTool = false;
+  let proxyToolType = 'Unknown';
+
+  // Clash检测
+  if (userAgent.includes('clash') || userAgent.includes('Clash')) {
+    isProxyTool = true;
+    proxyToolType = 'Clash';
+  }
+  // V2Ray检测
+  else if (userAgent.includes('v2ray') || userAgent.includes('V2Ray')) {
+    isProxyTool = true;
+    proxyToolType = 'V2Ray';
+  }
+  // Surge检测
+  else if (userAgent.includes('surge') || userAgent.includes('Surge')) {
+    isProxyTool = true;
+    proxyToolType = 'Surge';
+  }
+  // Quantumult X检测
+  else if (userAgent.includes('quantumult') || userAgent.includes('Quantumult')) {
+    isProxyTool = true;
+    proxyToolType = 'Quantumult X';
+  }
+  // Shadowrocket检测
+  else if (userAgent.includes('shadowrocket') || userAgent.includes('Shadowrocket')) {
+    isProxyTool = true;
+    proxyToolType = 'Shadowrocket';
+  }
+  // 其他代理工具检测
+  else if (userAgent.includes('proxy') || userAgent.includes('Proxy')) {
+    isProxyTool = true;
+    proxyToolType = 'Other Proxy Tool';
+  }
+  // 基于特征检测
+  else if (features.hasCustomHeaders && features.missingBrowserFeatures) {
+    isProxyTool = true;
+    proxyToolType = 'Suspicious Client';
+  }
+
+  return {
+    isProxyTool,
+    proxyToolType,
+    features
+  };
+}
+
+// 检查是否有现代浏览器特征
+function hasModernBrowserFeatures(req) {
+  const modernHeaders = [
+    'sec-fetch-site', 'sec-fetch-mode', 'sec-fetch-dest', 'sec-fetch-user',
+    'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform'
+  ];
+  return modernHeaders.some(h => req.headers[h]);
+}
+
+// 记录访问日志
+async function recordAccessLog(debugInfo, env) {
+  try {
+    if (!env.LINKS) return; // 如果没有KV存储，跳过记录
+
+    const kv = env.LINKS;
+    const logId = `access_log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // 创建访问日志记录
+    const accessLog = {
+      id: logId,
+      timestamp: debugInfo.timestamp,
+      method: debugInfo.requestInfo.method,
+      url: debugInfo.requestInfo.url,
+      userAgent: debugInfo.requestInfo.userAgent,
+      isProxyTool: debugInfo.requestInfo.isProxyTool,
+      proxyToolType: debugInfo.requestInfo.proxyToolType,
+      headers: debugInfo.requestInfo.rawHeaders, // Store raw headers
+      cfInfo: debugInfo.cfInfo,
+      stats: debugInfo.stats,
+      fullDebugInfo: debugInfo // Store full debug info for completeness
+    };
+
+    // 保存到KV存储，设置7天过期
+    await kv.put(`access_log:${logId}`, JSON.stringify(accessLog), {
+      expirationTtl: 7 * 24 * 60 * 60 // 7天
+    });
+
+    // 更新访问统计
+    await updateAccessStats(kv, debugInfo);
+
+  } catch (error) {
+    console.error('记录访问日志失败:', error);
+  }
+}
+
+// 更新访问统计
+async function updateAccessStats(kv, debugInfo) {
+  try {
+    const statsKey = 'access_stats';
+    let stats = { total: 0, proxy: 0, browser: 0, unknown: 0 };
+    
+    const existingStats = await kv.get(statsKey);
+    if (existingStats) {
+      stats = JSON.parse(existingStats);
+    }
+    
+    stats.total++;
+    if (debugInfo.requestInfo.isProxyTool) {
+      stats.proxy++;
+    } else if (debugInfo.requestInfo.userAgent && (
+      debugInfo.requestInfo.userAgent.includes('Mozilla') ||
+      debugInfo.requestInfo.userAgent.includes('Chrome') ||
+      debugInfo.requestInfo.userAgent.includes('Firefox') ||
+      debugInfo.requestInfo.userAgent.includes('Safari')
+    )) {
+      stats.browser++;
+    } else {
+      stats.unknown++;
+    }
+    
+    await kv.put(statsKey, JSON.stringify(stats));
+  } catch (error) {
+    console.error('更新访问统计失败:', error);
+  }
+}
+
 // 处理管理后台页面
 async function handleAdminPage(req, res) {
   // 简化版本：直接导入admin.js的处理逻辑
@@ -910,6 +1243,9 @@ const server = http.createServer(async (req, res) => {
   } else if (pathname === '/admin') {
     // 管理后台页面 - 需要特殊处理，避免被当作短链接
     await handleAdminPage(req, res);
+  } else if (pathname === '/debug-request') {
+    // 调试请求信息
+    await handleDebugRequest(req, res);
   } else if (pathname.startsWith('/api/')) {
     await handleAPI(pathname, req.method, body, res, req);
   } else if (pathname.match(/^\/[a-zA-Z0-9_-]+$/)) {
@@ -941,6 +1277,73 @@ server.listen(PORT, () => {
   console.log('- 按 Ctrl+C 停止服务器');
   console.log('');
 });
+
+// 访问日志相关函数
+async function listAccessLogs(kv, limit = 20) {
+  try {
+    const logs = [];
+    const keys = Array.from(mockKV.keys()).filter(key => key.startsWith('access_log:'));
+    
+    // 按时间戳排序（最新的在前）
+    const sortedKeys = keys.sort((a, b) => {
+      const aTime = a.split('_')[2] || '0';
+      const bTime = b.split('_')[2] || '0';
+      return parseInt(bTime) - parseInt(aTime);
+    });
+    
+    // 获取指定数量的日志
+    const limitedKeys = sortedKeys.slice(0, limit);
+    
+    for (const key of limitedKeys) {
+      const logData = mockKV.get(key);
+      if (logData) {
+        try {
+          logs.push(JSON.parse(logData));
+        } catch (error) {
+          console.error('Error parsing log data:', error);
+        }
+      }
+    }
+    
+    return logs;
+  } catch (error) {
+    console.error('Error listing access logs:', error);
+    return [];
+  }
+}
+
+async function getAccessStats(kv) {
+  try {
+    const statsKey = 'access_stats';
+    const statsData = mockKV.get(statsKey);
+    
+    if (statsData) {
+      return JSON.parse(statsData);
+    } else {
+      return { total: 0, proxy: 0, browser: 0, unknown: 0 };
+    }
+  } catch (error) {
+    console.error('Error getting access stats:', error);
+    return { total: 0, proxy: 0, browser: 0, unknown: 0 };
+  }
+}
+
+async function clearAccessLogs(kv) {
+  try {
+    const keys = Array.from(mockKV.keys()).filter(key => key.startsWith('access_log:'));
+    
+    for (const key of keys) {
+      mockKV.delete(key);
+    }
+    
+    // 清空统计
+    mockKV.delete('access_stats');
+    
+    console.log(`Cleared ${keys.length} access logs`);
+  } catch (error) {
+    console.error('Error clearing access logs:', error);
+  }
+}
 
 process.on('SIGINT', () => {
   console.log('\n👋 正在关闭服务器...');

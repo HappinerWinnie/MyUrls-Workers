@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>风控功能测试 - MyUrls</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .glass-effect {
+          background: rgba(255, 255, 255, 0.25);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div id="app" class="w-full max-w-6xl">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-white mb-4">风控功能测试</h1>
+            <p class="text-white opacity-90">测试短链接的风控和访问限制功能</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- 创建测试链接 -->
+            <div class="glass-effect rounded-2xl p-6 shadow-2xl">
+                <h2 class="text-2xl font-bold text-white mb-6">创建测试链接</h2>
+                
+                <form @submit.prevent="createTestLink" class="space-y-4">
+                    <div>
+                        <label class="block text-white text-sm font-medium mb-2">目标URL</label>
+                        <input v-model="testLink.longUrl" type="url" required
+                               placeholder="https://example.com"
+                               class="w-full px-4 py-3 bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50">
+                    </div>
+
+                    <div>
+                        <label class="block text-white text-sm font-medium mb-2">自定义别名</label>
+                        <input v-model="testLink.shortKey" type="text"
+                               placeholder="test-risk"
+                               class="w-full px-4 py-3 bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50">
+                    </div>
+
+                    <!-- 风控配置 -->
+                    <div class="bg-white bg-opacity-10 rounded-lg p-4">
+                        <h3 class="text-white font-medium mb-3">风控配置</h3>
+                        
+                        <div class="grid grid-cols-2 gap-3 mb-4">
+                            <div>
+                                <label class="block text-white text-xs mb-1">同设备限制</label>
+                                <input v-model="testLink.visitLimits.perDevice" type="number" min="0"
+                                       placeholder="无限制"
+                                       class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg">
+                            </div>
+                            <div>
+                                <label class="block text-white text-xs mb-1">同IP限制</label>
+                                <input v-model="testLink.visitLimits.perIP" type="number" min="0"
+                                       placeholder="无限制"
+                                       class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg">
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <div class="flex items-center">
+                                <input v-model="testLink.uaFilter.blockBrowsers" type="checkbox"
+                                       class="mr-2 text-blue-600 focus:ring-blue-500">
+                                <label class="text-white text-sm">屏蔽浏览器访问</label>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-white text-xs mb-1">允许的UA模式</label>
+                                <textarea v-model="testLink.uaFilter.allowedPatternsText" rows="2"
+                                          placeholder="clash&#10;v2ray"
+                                          class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" :disabled="creating"
+                            class="w-full px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg hover:bg-opacity-90 disabled:opacity-50">
+                        {{ creating ? '创建中...' : '创建测试链接' }}
+                    </button>
+                </form>
+
+                <!-- 创建结果 -->
+                <div v-if="createdLink" class="mt-6 p-4 bg-green-100 border border-green-300 rounded-lg">
+                    <h3 class="text-green-800 font-medium mb-2">链接创建成功！</h3>
+                    <div class="text-sm text-green-700">
+                        <p><strong>短链接:</strong> <a :href="createdLink.shortUrl" target="_blank" class="underline">{{ createdLink.shortUrl }}</a></p>
+                        <p><strong>设备ID:</strong> <code class="bg-gray-200 px-1 rounded">{{ deviceId }}</code></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 测试访问 -->
+            <div class="glass-effect rounded-2xl p-6 shadow-2xl">
+                <h2 class="text-2xl font-bold text-white mb-6">测试访问</h2>
+                
+                <div v-if="!createdLink" class="text-white opacity-75 text-center py-8">
+                    请先创建一个测试链接
+                </div>
+
+                <div v-else class="space-y-4">
+                    <div class="bg-white bg-opacity-10 rounded-lg p-4">
+                        <h3 class="text-white font-medium mb-3">当前设备信息</h3>
+                        <div class="text-sm text-white space-y-1">
+                            <p><strong>设备ID:</strong> {{ deviceId }}</p>
+                            <p><strong>User-Agent:</strong> {{ userAgent }}</p>
+                            <p><strong>平台:</strong> {{ platform }}</p>
+                            <p><strong>浏览器:</strong> {{ browser }}</p>
+                            <p><strong>风险评分:</strong> {{ riskScore }}/100</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <button @click="testAccess" :disabled="testing"
+                                class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                            {{ testing ? '测试中...' : '测试访问链接' }}
+                        </button>
+
+                        <button @click="testWithDifferentUA" :disabled="testing"
+                                class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+                            使用Clash UA测试
+                        </button>
+
+                        <button @click="testMultipleTimes" :disabled="testing"
+                                class="w-full px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:opacity-50">
+                            多次访问测试
+                        </button>
+                    </div>
+
+                    <!-- 访问结果 -->
+                    <div v-if="accessResults.length > 0" class="space-y-2">
+                        <h3 class="text-white font-medium">访问结果</h3>
+                        <div v-for="(result, index) in accessResults" :key="index"
+                             :class="result.success ? 'bg-green-100 border-green-300' : 'bg-red-100 border-red-300'"
+                             class="p-3 border rounded-lg">
+                            <div class="text-sm">
+                                <p><strong>时间:</strong> {{ result.timestamp }}</p>
+                                <p><strong>结果:</strong> {{ result.success ? '成功' : '失败' }}</p>
+                                <p><strong>响应:</strong> {{ result.message }}</p>
+                                <p v-if="result.statusCode"><strong>状态码:</strong> {{ result.statusCode }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 风控管理 -->
+        <div v-if="createdLink" class="glass-effect rounded-2xl p-6 shadow-2xl mt-8">
+            <h2 class="text-2xl font-bold text-white mb-6">风控管理</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-white font-medium mb-3">封禁当前设备</h3>
+                    <div class="space-y-3">
+                        <input v-model="blockReason" type="text" placeholder="封禁原因"
+                               class="w-full px-3 py-2 bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg">
+                        <button @click="blockCurrentDevice" :disabled="blocking"
+                                class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                            {{ blocking ? '封禁中...' : '封禁设备' }}
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-white font-medium mb-3">获取访问统计</h3>
+                    <button @click="getVisitStats" :disabled="loadingStats"
+                            class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                        {{ loadingStats ? '加载中...' : '获取统计' }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- 访问统计 -->
+            <div v-if="visitStats.length > 0" class="mt-6">
+                <h3 class="text-white font-medium mb-3">访问统计</h3>
+                <div class="bg-white bg-opacity-10 rounded-lg p-4 max-h-64 overflow-y-auto">
+                    <div v-for="(stat, index) in visitStats" :key="index" class="text-sm text-white mb-2 pb-2 border-b border-white border-opacity-20">
+                        <p><strong>时间:</strong> {{ formatDate(stat.timestamp) }}</p>
+                        <p><strong>设备ID:</strong> {{ stat.deviceInfo.deviceId.substring(0, 16) }}...</p>
+                        <p><strong>IP:</strong> {{ stat.ipAddress }}</p>
+                        <p><strong>风险评分:</strong> {{ stat.riskScore }}/100</p>
+                        <p><strong>User-Agent:</strong> {{ stat.userAgent.substring(0, 50) }}...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    testLink: {
+                        longUrl: 'https://www.google.com',
+                        shortKey: 'test-risk-' + Math.random().toString(36).substr(2, 8),
+                        visitLimits: {
+                            perDevice: 3,
+                            perIP: 5
+                        },
+                        uaFilter: {
+                            blockBrowsers: false,
+                            allowedPatternsText: 'clash\nv2ray'
+                        }
+                    },
+                    createdLink: null,
+                    deviceId: '',
+                    userAgent: navigator.userAgent,
+                    platform: navigator.platform,
+                    browser: this.detectBrowser(navigator.userAgent),
+                    riskScore: 0,
+                    creating: false,
+                    testing: false,
+                    blocking: false,
+                    loadingStats: false,
+                    accessResults: [],
+                    blockReason: '测试封禁',
+                    visitStats: []
+                }
+            },
+            mounted() {
+                this.generateDeviceFingerprint();
+            },
+            methods: {
+                detectBrowser(userAgent) {
+                    const ua = userAgent.toLowerCase();
+                    if (ua.includes('chrome') && !ua.includes('edg')) return 'Chrome';
+                    if (ua.includes('firefox')) return 'Firefox';
+                    if (ua.includes('safari') && !ua.includes('chrome')) return 'Safari';
+                    if (ua.includes('edg')) return 'Edge';
+                    return 'Unknown';
+                },
+
+                generateDeviceFingerprint() {
+                    // 简化的设备指纹生成
+                    const fingerprint = {
+                        userAgent: this.userAgent,
+                        platform: this.platform,
+                        language: navigator.language,
+                        screen: `${screen.width}x${screen.height}`,
+                        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                    };
+                    
+                    this.deviceId = btoa(JSON.stringify(fingerprint)).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
+                    this.riskScore = this.calculateRiskScore(fingerprint);
+                },
+
+                calculateRiskScore(fingerprint) {
+                    let score = 10;
+                    
+                    // 浏览器访问风险较高
+                    if (this.isBrowserUserAgent(fingerprint.userAgent)) {
+                        score += 20;
+                    }
+                    
+                    // 移动设备风险较低
+                    if (fingerprint.platform.includes('Mobile')) {
+                        score -= 5;
+                    }
+                    
+                    return Math.max(0, Math.min(100, score));
+                },
+
+                isBrowserUserAgent(userAgent) {
+                    const ua = userAgent.toLowerCase();
+                    const browserPatterns = ['mozilla', 'chrome', 'safari', 'firefox', 'edge', 'opera'];
+                    return browserPatterns.some(pattern => ua.includes(pattern));
+                },
+
+                async createTestLink() {
+                    this.creating = true;
+                    try {
+                        const visitLimits = {};
+                        if (this.testLink.visitLimits.perDevice) visitLimits.perDevice = parseInt(this.testLink.visitLimits.perDevice);
+                        if (this.testLink.visitLimits.perIP) visitLimits.perIP = parseInt(this.testLink.visitLimits.perIP);
+
+                        const uaFilter = {
+                            blockBrowsers: this.testLink.uaFilter.blockBrowsers,
+                            allowedPatterns: this.testLink.uaFilter.allowedPatternsText ? 
+                                this.testLink.uaFilter.allowedPatternsText.split('\n').map(p => p.trim()).filter(p => p) : []
+                        };
+
+                        const response = await axios.post('/api/links', {
+                            longUrl: this.testLink.longUrl,
+                            shortKey: this.testLink.shortKey,
+                            title: '风控测试链接',
+                            visitLimits: Object.keys(visitLimits).length > 0 ? visitLimits : undefined,
+                            uaFilter: uaFilter.blockBrowsers || uaFilter.allowedPatterns.length > 0 ? uaFilter : undefined
+                        });
+
+                        if (response.data.success) {
+                            this.createdLink = response.data.data;
+                            this.accessResults = [];
+                        } else {
+                            alert('创建失败: ' + response.data.error.message);
+                        }
+                    } catch (error) {
+                        alert('创建失败: ' + error.message);
+                    } finally {
+                        this.creating = false;
+                    }
+                },
+
+                async testAccess() {
+                    this.testing = true;
+                    try {
+                        const response = await fetch(this.createdLink.shortUrl, {
+                            method: 'GET',
+                            headers: {
+                                'User-Agent': this.userAgent
+                            }
+                        });
+
+                        this.accessResults.unshift({
+                            timestamp: new Date().toLocaleString(),
+                            success: response.ok,
+                            message: response.ok ? '访问成功' : `访问失败: ${response.status} ${response.statusText}`,
+                            statusCode: response.status
+                        });
+                    } catch (error) {
+                        this.accessResults.unshift({
+                            timestamp: new Date().toLocaleString(),
+                            success: false,
+                            message: '访问失败: ' + error.message
+                        });
+                    } finally {
+                        this.testing = false;
+                    }
+                },
+
+                async testWithDifferentUA() {
+                    this.testing = true;
+                    try {
+                        const response = await fetch(this.createdLink.shortUrl, {
+                            method: 'GET',
+                            headers: {
+                                'User-Agent': 'ClashMeta/1.18.0'
+                            }
+                        });
+
+                        this.accessResults.unshift({
+                            timestamp: new Date().toLocaleString(),
+                            success: response.ok,
+                            message: response.ok ? 'Clash UA访问成功' : `Clash UA访问失败: ${response.status} ${response.statusText}`,
+                            statusCode: response.status
+                        });
+                    } catch (error) {
+                        this.accessResults.unshift({
+                            timestamp: new Date().toLocaleString(),
+                            success: false,
+                            message: 'Clash UA访问失败: ' + error.message
+                        });
+                    } finally {
+                        this.testing = false;
+                    }
+                },
+
+                async testMultipleTimes() {
+                    this.testing = true;
+                    try {
+                        for (let i = 0; i < 5; i++) {
+                            await new Promise(resolve => setTimeout(resolve, 1000)); // 延迟1秒
+                            
+                            const response = await fetch(this.createdLink.shortUrl, {
+                                method: 'GET',
+                                headers: {
+                                    'User-Agent': this.userAgent
+                                }
+                            });
+
+                            this.accessResults.unshift({
+                                timestamp: new Date().toLocaleString(),
+                                success: response.ok,
+                                message: `第${i + 1}次访问: ${response.ok ? '成功' : '失败'}`,
+                                statusCode: response.status
+                            });
+                        }
+                    } catch (error) {
+                        this.accessResults.unshift({
+                            timestamp: new Date().toLocaleString(),
+                            success: false,
+                            message: '多次访问测试失败: ' + error.message
+                        });
+                    } finally {
+                        this.testing = false;
+                    }
+                },
+
+                async blockCurrentDevice() {
+                    if (!this.blockReason) {
+                        alert('请输入封禁原因');
+                        return;
+                    }
+
+                    this.blocking = true;
+                    try {
+                        const response = await axios.post('/api/risk-control?action=block-device', {
+                            deviceId: this.deviceId,
+                            reason: this.blockReason,
+                            duration: 3600 // 1小时
+                        });
+
+                        if (response.data.success) {
+                            alert('设备封禁成功');
+                        } else {
+                            alert('封禁失败: ' + response.data.error.message);
+                        }
+                    } catch (error) {
+                        alert('封禁失败: ' + error.message);
+                    } finally {
+                        this.blocking = false;
+                    }
+                },
+
+                async getVisitStats() {
+                    this.loadingStats = true;
+                    try {
+                        const response = await axios.get(`/api/risk-control?action=get-stats&shortKey=${this.createdLink.shortKey}`);
+                        if (response.data.success) {
+                            this.visitStats = response.data.data.stats;
+                        } else {
+                            alert('获取统计失败: ' + response.data.error.message);
+                        }
+                    } catch (error) {
+                        alert('获取统计失败: ' + error.message);
+                    } finally {
+                        this.loadingStats = false;
+                    }
+                },
+
+                formatDate(dateString) {
+                    return new Date(dateString).toLocaleString('zh-CN');
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

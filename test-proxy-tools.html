@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代理工具测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-6xl mx-auto">
+            <h1 class="text-3xl font-bold text-gray-800 mb-8">代理工具测试</h1>
+            
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4">模拟代理工具访问</h2>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <button id="test-clash" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        测试 Clash
+                    </button>
+                    <button id="test-v2ray" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                        测试 V2Ray
+                    </button>
+                    <button id="test-quantumult" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600">
+                        测试 Quantumult
+                    </button>
+                    <button id="test-surge" class="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600">
+                        测试 Surge
+                    </button>
+                    <button id="test-shadowrocket" class="bg-pink-500 text-white px-4 py-2 rounded hover:bg-pink-600">
+                        测试 Shadowrocket
+                    </button>
+                    <button id="test-loon" class="bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600">
+                        测试 Loon
+                    </button>
+                    <button id="test-stash" class="bg-teal-500 text-white px-4 py-2 rounded hover:bg-teal-600">
+                        测试 Stash
+                    </button>
+                    <button id="test-singbox" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                        测试 Sing-Box
+                    </button>
+                    <button id="test-curl" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                        测试 curl
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4">测试结果</h2>
+                <div id="test-results" class="space-y-4">
+                    <div class="text-gray-500">点击上方按钮开始测试...</div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">代理工具特征对比</h2>
+                <div id="comparison-table" class="overflow-x-auto">
+                    <table class="min-w-full table-auto">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left">工具</th>
+                                <th class="px-4 py-2 text-left">User-Agent</th>
+                                <th class="px-4 py-2 text-left">自定义头</th>
+                                <th class="px-4 py-2 text-left">浏览器特征</th>
+                                <th class="px-4 py-2 text-left">请求头数量</th>
+                            </tr>
+                        </thead>
+                        <tbody id="comparison-body">
+                            <!-- 对比数据将在这里显示 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 代理工具配置
+        const proxyTools = {
+            'Clash': {
+                userAgent: 'ClashMeta/1.18.0',
+                headers: {
+                    'X-Proxy-Tool': 'Clash',
+                    'X-Client-Name': 'ClashMeta',
+                    'X-Client-Version': '1.18.0',
+                    'X-Proxy-Type': 'HTTP',
+                    'X-Proxy-Protocol': 'HTTP/1.1'
+                }
+            },
+            'V2Ray': {
+                userAgent: 'V2Ray/5.0.0',
+                headers: {
+                    'X-Proxy-Tool': 'V2Ray',
+                    'X-Client-Name': 'V2Ray',
+                    'X-Client-Version': '5.0.0',
+                    'X-Proxy-Type': 'VMess',
+                    'X-Proxy-Protocol': 'TCP'
+                }
+            },
+            'Quantumult': {
+                userAgent: 'QuantumultX/1.0.0',
+                headers: {
+                    'X-Proxy-Tool': 'Quantumult',
+                    'X-Client-Name': 'QuantumultX',
+                    'X-Client-Version': '1.0.0',
+                    'X-Proxy-Type': 'HTTP',
+                    'X-Proxy-Protocol': 'HTTP/2'
+                }
+            },
+            'Surge': {
+                userAgent: 'Surge/4.0.0',
+                headers: {
+                    'X-Proxy-Tool': 'Surge',
+                    'X-Client-Name': 'Surge',
+                    'X-Client-Version': '4.0.0',
+                    'X-Proxy-Type': 'HTTP',
+                    'X-Proxy-Protocol': 'HTTP/2'
+                }
+            },
+            'Shadowrocket': {
+                userAgent: 'Shadowrocket/2.2.0',
+                headers: {
+                    'X-Proxy-Tool': 'Shadowrocket',
+                    'X-Client-Name': 'Shadowrocket',
+                    'X-Client-Version': '2.2.0',
+                    'X-Proxy-Type': 'HTTP',
+                    'X-Proxy-Protocol': 'HTTP/1.1'
+                }
+            },
+            'Loon': {
+                userAgent: 'Loon/3.0.0',
+                headers: {
+                    'X-Proxy-Tool': 'Loon',
+                    'X-Client-Name': 'Loon',
+                    'X-Client-Version': '3.0.0',
+                    'X-Proxy-Type': 'HTTP',
+                    'X-Proxy-Protocol': 'HTTP/2'
+                }
+            },
+            'Stash': {
+                userAgent: 'Stash/1.0.0',
+                headers: {
+                    'X-Proxy-Tool': 'Stash',
+                    'X-Client-Name': 'Stash',
+                    'X-Client-Version': '1.0.0',
+                    'X-Proxy-Type': 'HTTP',
+                    'X-Proxy-Protocol': 'HTTP/2'
+                }
+            },
+            'Sing-Box': {
+                userAgent: 'sing-box/1.0.0',
+                headers: {
+                    'X-Proxy-Tool': 'Sing-Box',
+                    'X-Client-Name': 'sing-box',
+                    'X-Client-Version': '1.0.0',
+                    'X-Proxy-Type': 'HTTP',
+                    'X-Proxy-Protocol': 'HTTP/2'
+                }
+            },
+            'curl': {
+                userAgent: 'curl/7.68.0',
+                headers: {
+                    'Accept': '*/*',
+                    'User-Agent': 'curl/7.68.0'
+                }
+            }
+        };
+
+        // 测试结果存储
+        let testResults = {};
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // 绑定测试按钮事件
+            Object.keys(proxyTools).forEach(tool => {
+                document.getElementById(`test-${tool.toLowerCase().replace(/[^a-z0-9]/g, '')}`)
+                    .addEventListener('click', () => testProxyTool(tool));
+            });
+        });
+
+        async function testProxyTool(toolName) {
+            const resultsDiv = document.getElementById('test-results');
+            const toolConfig = proxyTools[toolName];
+            
+            // 显示测试开始
+            resultsDiv.innerHTML = `<div class="text-blue-500">正在测试 ${toolName}...</div>`;
+
+            try {
+                const response = await fetch('/debug-request', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'User-Agent': toolConfig.userAgent,
+                        ...toolConfig.headers
+                    },
+                    body: JSON.stringify({
+                        tool: toolName,
+                        timestamp: new Date().toISOString(),
+                        testData: `Testing ${toolName} proxy tool access`
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    const result = data.data;
+                    testResults[toolName] = result;
+                    displayTestResult(toolName, result);
+                    updateComparisonTable();
+                } else {
+                    resultsDiv.innerHTML = `<div class="text-red-500">测试失败: ${data.message}</div>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="text-red-500">测试失败: ${error.message}</div>`;
+            }
+        }
+
+        function displayTestResult(toolName, result) {
+            const resultsDiv = document.getElementById('test-results');
+            const proxyInfo = result.requestInfo;
+            
+            const resultHtml = `
+                <div class="bg-gray-50 p-4 rounded border-l-4 border-blue-500">
+                    <h3 class="font-semibold text-lg mb-2">${toolName} 测试结果</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <strong>检测结果:</strong>
+                            <span class="px-2 py-1 rounded text-xs ${proxyInfo.isProxyTool ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}">
+                                ${proxyInfo.isProxyTool ? '检测到代理工具' : '未检测到代理工具'}
+                            </span>
+                        </div>
+                        <div><strong>工具类型:</strong> ${proxyInfo.proxyToolType}</div>
+                        <div><strong>User-Agent:</strong> <span class="break-all">${proxyInfo.userAgent}</span></div>
+                        <div><strong>请求头数量:</strong> ${proxyInfo.proxyToolFeatures.headerCount}</div>
+                        <div><strong>自定义请求头:</strong> ${proxyInfo.proxyToolFeatures.hasCustomHeaders ? '是' : '否'}</div>
+                        <div><strong>缺少浏览器特征:</strong> ${proxyInfo.proxyToolFeatures.missingBrowserFeatures ? '是' : '否'}</div>
+                        <div><strong>检测到的模式:</strong> ${proxyInfo.proxyToolFeatures.detectedPatterns?.join(', ') || '无'}</div>
+                        <div><strong>特定工具特征:</strong>
+                            <div class="ml-4 mt-1">
+                                <div>Clash: ${proxyInfo.proxyToolFeatures.hasClashHeaders ? '是' : '否'}</div>
+                                <div>V2Ray: ${proxyInfo.proxyToolFeatures.hasV2RayHeaders ? '是' : '否'}</div>
+                                <div>Quantumult: ${proxyInfo.proxyToolFeatures.hasQuantumultHeaders ? '是' : '否'}</div>
+                                <div>Surge: ${proxyInfo.proxyToolFeatures.hasSurgeHeaders ? '是' : '否'}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            resultsDiv.innerHTML = resultHtml + resultsDiv.innerHTML;
+        }
+
+        function updateComparisonTable() {
+            const tbody = document.getElementById('comparison-body');
+            tbody.innerHTML = '';
+            
+            Object.entries(testResults).forEach(([toolName, result]) => {
+                const proxyInfo = result.requestInfo;
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-200';
+                row.innerHTML = `
+                    <td class="px-4 py-2 font-medium">${toolName}</td>
+                    <td class="px-4 py-2 text-sm break-all max-w-xs">${proxyInfo.userAgent}</td>
+                    <td class="px-4 py-2 text-sm">${proxyInfo.proxyToolFeatures.hasCustomHeaders ? '是' : '否'}</td>
+                    <td class="px-4 py-2 text-sm">${proxyInfo.proxyToolFeatures.missingBrowserFeatures ? '缺少' : '正常'}</td>
+                    <td class="px-4 py-2 text-sm">${proxyInfo.proxyToolFeatures.headerCount}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    </script>
+</body>
+</html>

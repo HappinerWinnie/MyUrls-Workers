@@ -125,6 +125,32 @@ async function createLink(request, kv, isAuthenticated) {
       maxVisits = parseInt(data.maxVisits);
     }
 
+    // 处理风控配置
+    const visitLimits = {
+      total: data.visitLimits?.total ? parseInt(data.visitLimits.total) : null,
+      perDevice: data.visitLimits?.perDevice ? parseInt(data.visitLimits.perDevice) : null,
+      perIP: data.visitLimits?.perIP ? parseInt(data.visitLimits.perIP) : null,
+      perDeviceIP: data.visitLimits?.perDeviceIP ? parseInt(data.visitLimits.perDeviceIP) : null
+    };
+
+    // 处理UA过滤配置
+    const uaFilter = {
+      blockBrowsers: data.uaFilter?.blockBrowsers || false,
+      allowedPatterns: data.uaFilter?.allowedPatterns || [],
+      blockedPatterns: data.uaFilter?.blockedPatterns || []
+    };
+
+    // 处理风控告警配置
+    const riskAlert = {
+      enabled: data.riskAlert?.enabled || false,
+      telegramToken: data.riskAlert?.telegramToken || null,
+      telegramChatId: data.riskAlert?.telegramChatId || null,
+      alertThreshold: data.riskAlert?.alertThreshold || 70
+    };
+
+    // 处理浏览器指纹信息
+    const browserFingerprint = data.browserFingerprint || null;
+
     // 处理标签
     let tags = [];
     if (data.tags) {
@@ -149,6 +175,10 @@ async function createLink(request, kv, isAuthenticated) {
       accessMode: data.accessMode || 'redirect',
       secureMode: data.secureMode !== false, // 默认启用安全模式
       customHeaders: data.customHeaders || {}, // 自定义响应头
+      visitLimits, // 风控访问限制配置
+      uaFilter, // UA过滤配置
+      riskAlert, // 风控告警配置
+      browserFingerprint, // 浏览器指纹信息
       createdAt: getCurrentTimestamp(),
       updatedAt: getCurrentTimestamp(),
       createdBy: isAuthenticated ? 'admin' : 'anonymous',

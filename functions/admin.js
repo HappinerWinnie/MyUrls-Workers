@@ -346,6 +346,9 @@ function getAdminPage() {
                             <button @click="loadLinks" class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
                                 刷新
                             </button>
+                            <button @click="showRiskControl = !showRiskControl" class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                                {{ showRiskControl ? '隐藏风控' : '风控管理' }}
+                            </button>
                             <button @click="clearCache" class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
                                 清除缓存
                             </button>
@@ -487,6 +490,111 @@ function getAdminPage() {
                                 <button @click="deleteLink(link)" class="text-red-600 hover:text-red-900 text-sm font-medium">
                                     删除
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 风控管理面板 -->
+            <div v-if="showRiskControl" class="bg-white shadow rounded-lg mt-8">
+                <div class="px-4 py-5 sm:p-6">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">风控管理</h3>
+                    
+                    <!-- 封禁管理 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <!-- 封禁设备 -->
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h4 class="text-md font-medium text-gray-900 mb-3">封禁设备</h4>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">设备ID</label>
+                                    <input v-model="blockDeviceForm.deviceId" type="text" placeholder="设备指纹ID"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">封禁原因</label>
+                                    <input v-model="blockDeviceForm.reason" type="text" placeholder="封禁原因"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">封禁时长（秒，留空永久）</label>
+                                    <input v-model="blockDeviceForm.duration" type="number" placeholder="3600"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                                <button @click="blockDevice" :disabled="blockingDevice"
+                                        class="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50">
+                                    {{ blockingDevice ? '封禁中...' : '封禁设备' }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 封禁IP -->
+                        <div class="border border-gray-200 rounded-lg p-4">
+                            <h4 class="text-md font-medium text-gray-900 mb-3">封禁IP</h4>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">IP地址</label>
+                                    <input v-model="blockIPForm.ipAddress" type="text" placeholder="192.168.1.1"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">封禁原因</label>
+                                    <input v-model="blockIPForm.reason" type="text" placeholder="封禁原因"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">封禁时长（秒，留空永久）</label>
+                                    <input v-model="blockIPForm.duration" type="number" placeholder="3600"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                                <button @click="blockIP" :disabled="blockingIP"
+                                        class="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50">
+                                    {{ blockingIP ? '封禁中...' : '封禁IP' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 封禁列表 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- 被封禁的设备 -->
+                        <div>
+                            <h4 class="text-md font-medium text-gray-900 mb-3">被封禁的设备</h4>
+                            <div v-if="blockedDevices.length === 0" class="text-gray-500 text-sm">暂无被封禁的设备</div>
+                            <div v-else class="space-y-2">
+                                <div v-for="device in blockedDevices" :key="device.deviceId" 
+                                     class="flex justify-between items-center p-3 bg-red-50 border border-red-200 rounded-md">
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900">{{ device.deviceId.substring(0, 16) }}...</div>
+                                        <div class="text-xs text-gray-500">{{ device.reason }}</div>
+                                        <div class="text-xs text-gray-500">{{ formatDate(device.blockedAt) }}</div>
+                                    </div>
+                                    <button @click="unblockDevice(device.deviceId)" 
+                                            class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">
+                                        解封
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 被封禁的IP -->
+                        <div>
+                            <h4 class="text-md font-medium text-gray-900 mb-3">被封禁的IP</h4>
+                            <div v-if="blockedIPs.length === 0" class="text-gray-500 text-sm">暂无被封禁的IP</div>
+                            <div v-else class="space-y-2">
+                                <div v-for="ip in blockedIPs" :key="ip.ipAddress" 
+                                     class="flex justify-between items-center p-3 bg-red-50 border border-red-200 rounded-md">
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900">{{ ip.ipAddress }}</div>
+                                        <div class="text-xs text-gray-500">{{ ip.reason }}</div>
+                                        <div class="text-xs text-gray-500">{{ formatDate(ip.blockedAt) }}</div>
+                                    </div>
+                                    <button @click="unblockIP(ip.ipAddress)" 
+                                            class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">
+                                        解封
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -742,11 +850,27 @@ function getAdminPage() {
                         cacheUsed: false,
                         totalLinksInSystem: 0
                     },
-                    searchTimeout: null
+                    searchTimeout: null,
+                    showRiskControl: false,
+                    blockedDevices: [],
+                    blockedIPs: [],
+                    blockDeviceForm: {
+                        deviceId: '',
+                        reason: '',
+                        duration: ''
+                    },
+                    blockIPForm: {
+                        ipAddress: '',
+                        reason: '',
+                        duration: ''
+                    },
+                    blockingDevice: false,
+                    blockingIP: false
                 }
             },
             mounted() {
                 this.loadLinks();
+                this.loadBlockedList();
             },
             methods: {
                 async loadLinks(page = 1, limit = 20) {
@@ -1122,6 +1246,113 @@ function getAdminPage() {
                     }
 
                     return null; // 验证通过
+                },
+
+                // 风控管理方法
+                async loadBlockedList() {
+                    try {
+                        const response = await axios.get('/api/risk-control?action=get-blocked');
+                        if (response.data.success) {
+                            this.blockedDevices = response.data.data.blockedDevices;
+                            this.blockedIPs = response.data.data.blockedIPs;
+                        }
+                    } catch (error) {
+                        console.error('Failed to load blocked list:', error);
+                    }
+                },
+
+                async blockDevice() {
+                    if (!this.blockDeviceForm.deviceId || !this.blockDeviceForm.reason) {
+                        alert('请填写设备ID和封禁原因');
+                        return;
+                    }
+
+                    this.blockingDevice = true;
+                    try {
+                        const response = await axios.post('/api/risk-control?action=block-device', {
+                            deviceId: this.blockDeviceForm.deviceId,
+                            reason: this.blockDeviceForm.reason,
+                            duration: this.blockDeviceForm.duration ? parseInt(this.blockDeviceForm.duration) : null
+                        });
+
+                        if (response.data.success) {
+                            alert('设备封禁成功');
+                            this.blockDeviceForm = { deviceId: '', reason: '', duration: '' };
+                            this.loadBlockedList();
+                        } else {
+                            alert('封禁失败: ' + response.data.error.message);
+                        }
+                    } catch (error) {
+                        alert('封禁失败，请重试');
+                    } finally {
+                        this.blockingDevice = false;
+                    }
+                },
+
+                async blockIP() {
+                    if (!this.blockIPForm.ipAddress || !this.blockIPForm.reason) {
+                        alert('请填写IP地址和封禁原因');
+                        return;
+                    }
+
+                    this.blockingIP = true;
+                    try {
+                        const response = await axios.post('/api/risk-control?action=block-ip', {
+                            ipAddress: this.blockIPForm.ipAddress,
+                            reason: this.blockIPForm.reason,
+                            duration: this.blockIPForm.duration ? parseInt(this.blockIPForm.duration) : null
+                        });
+
+                        if (response.data.success) {
+                            alert('IP封禁成功');
+                            this.blockIPForm = { ipAddress: '', reason: '', duration: '' };
+                            this.loadBlockedList();
+                        } else {
+                            alert('封禁失败: ' + response.data.error.message);
+                        }
+                    } catch (error) {
+                        alert('封禁失败，请重试');
+                    } finally {
+                        this.blockingIP = false;
+                    }
+                },
+
+                async unblockDevice(deviceId) {
+                    if (!confirm('确定要解封这个设备吗？')) return;
+
+                    try {
+                        const response = await axios.post('/api/risk-control?action=unblock-device', {
+                            deviceId: deviceId
+                        });
+
+                        if (response.data.success) {
+                            alert('设备解封成功');
+                            this.loadBlockedList();
+                        } else {
+                            alert('解封失败: ' + response.data.error.message);
+                        }
+                    } catch (error) {
+                        alert('解封失败，请重试');
+                    }
+                },
+
+                async unblockIP(ipAddress) {
+                    if (!confirm('确定要解封这个IP吗？')) return;
+
+                    try {
+                        const response = await axios.post('/api/risk-control?action=unblock-ip', {
+                            ipAddress: ipAddress
+                        });
+
+                        if (response.data.success) {
+                            alert('IP解封成功');
+                            this.loadBlockedList();
+                        } else {
+                            alert('解封失败: ' + response.data.error.message);
+                        }
+                    } catch (error) {
+                        alert('解封失败，请重试');
+                    }
                 }
             }
         }).mount('#app');

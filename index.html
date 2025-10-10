@@ -17,6 +17,9 @@
   <!-- Axios -->
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
+  <!-- Browser Fingerprint -->
+  <script src="/static/browser-fingerprint.js"></script>
+
   <style>
     body {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -233,6 +236,140 @@
               </div>
             </div>
 
+            <!-- 风控配置 -->
+            <div class="space-y-4">
+              <h4 class="text-white font-medium text-left">风控配置（可选）</h4>
+
+              <!-- 访问次数限制配置 -->
+              <div class="bg-white bg-opacity-10 rounded-lg p-4">
+                <h5 class="text-white text-sm font-medium mb-3">访问次数限制</h5>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <label class="block text-white text-xs mb-1 text-left">总次数</label>
+                    <input
+                      v-model="visitLimits.total"
+                      type="number"
+                      min="0"
+                      placeholder="无限制"
+                      class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                    >
+                  </div>
+                  <div>
+                    <label class="block text-white text-xs mb-1 text-left">同设备</label>
+                    <input
+                      v-model="visitLimits.perDevice"
+                      type="number"
+                      min="0"
+                      placeholder="无限制"
+                      class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                    >
+                  </div>
+                  <div>
+                    <label class="block text-white text-xs mb-1 text-left">同IP</label>
+                    <input
+                      v-model="visitLimits.perIP"
+                      type="number"
+                      min="0"
+                      placeholder="无限制"
+                      class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                    >
+                  </div>
+                  <div>
+                    <label class="block text-white text-xs mb-1 text-left">同设备+IP</label>
+                    <input
+                      v-model="visitLimits.perDeviceIP"
+                      type="number"
+                      min="0"
+                      placeholder="无限制"
+                      class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                    >
+                  </div>
+                </div>
+                <p class="text-white text-xs opacity-75 mt-2 text-left">设置不同维度的访问次数限制，防止滥用</p>
+              </div>
+
+              <!-- UA过滤配置 -->
+              <div class="bg-white bg-opacity-10 rounded-lg p-4">
+                <h5 class="text-white text-sm font-medium mb-3">User-Agent过滤</h5>
+                <div class="space-y-3">
+                  <div class="flex items-center">
+                    <input
+                      v-model="uaFilter.blockBrowsers"
+                      type="checkbox"
+                      class="mr-2 text-blue-600 focus:ring-blue-500"
+                    >
+                    <label class="text-white text-sm">屏蔽浏览器访问</label>
+                  </div>
+                  <div>
+                    <label class="block text-white text-xs mb-1 text-left">允许的UA模式（每行一个）</label>
+                    <textarea
+                      v-model="uaFilter.allowedPatternsText"
+                      rows="2"
+                      placeholder="clash&#10;v2ray&#10;quantumult"
+                      class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                    ></textarea>
+                  </div>
+                  <div>
+                    <label class="block text-white text-xs mb-1 text-left">禁止的UA模式（每行一个）</label>
+                    <textarea
+                      v-model="uaFilter.blockedPatternsText"
+                      rows="2"
+                      placeholder="bot&#10;spider&#10;crawler"
+                      class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                    ></textarea>
+                  </div>
+                </div>
+                <p class="text-white text-xs opacity-75 mt-2 text-left">控制哪些User-Agent可以访问链接</p>
+              </div>
+
+              <!-- 风控告警配置 -->
+              <div class="bg-white bg-opacity-10 rounded-lg p-4">
+                <h5 class="text-white text-sm font-medium mb-3">风控告警（可选）</h5>
+                <div class="space-y-3">
+                  <div class="flex items-center">
+                    <input
+                      v-model="riskAlert.enabled"
+                      type="checkbox"
+                      class="mr-2 text-blue-600 focus:ring-blue-500"
+                    >
+                    <label class="text-white text-sm">启用Telegram告警</label>
+                  </div>
+                  <div v-if="riskAlert.enabled" class="space-y-3">
+                    <div>
+                      <label class="block text-white text-xs mb-1 text-left">Telegram Bot Token</label>
+                      <input
+                        v-model="riskAlert.telegramToken"
+                        type="text"
+                        placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                        class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                      >
+                    </div>
+                    <div>
+                      <label class="block text-white text-xs mb-1 text-left">Telegram Chat ID</label>
+                      <input
+                        v-model="riskAlert.telegramChatId"
+                        type="text"
+                        placeholder="123456789"
+                        class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                      >
+                    </div>
+                    <div>
+                      <label class="block text-white text-xs mb-1 text-left">告警阈值（0-100）</label>
+                      <input
+                        v-model="riskAlert.alertThreshold"
+                        type="number"
+                        min="0"
+                        max="100"
+                        placeholder="70"
+                        class="w-full px-3 py-2 text-sm bg-white bg-opacity-90 border border-white border-opacity-30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50"
+                      >
+                    </div>
+                  </div>
+                </div>
+                <p class="text-white text-xs opacity-75 mt-2 text-left">检测到异常访问时发送Telegram通知</p>
+              </div>
+            </div>
+
             <!-- 自定义响应头设置 -->
             <div class="space-y-4">
               <h4 class="text-white font-medium text-left">自定义响应头（可选）</h4>
@@ -438,6 +575,23 @@
             type: '',
             filename: ''
           },
+          visitLimits: {
+            total: '',
+            perDevice: '',
+            perIP: '',
+            perDeviceIP: ''
+          },
+          uaFilter: {
+            blockBrowsers: false,
+            allowedPatternsText: '',
+            blockedPatternsText: ''
+          },
+          riskAlert: {
+            enabled: false,
+            telegramToken: '',
+            telegramChatId: '',
+            alertThreshold: 70
+          },
           showAdvanced: false,
           urlError: '',
           linkInfo: null
@@ -524,6 +678,34 @@
               customHeaders['content-disposition'] = contentDisposition;
             }
 
+        // 处理风控配置
+        const visitLimits = {};
+        if (this.visitLimits.total) visitLimits.total = parseInt(this.visitLimits.total);
+        if (this.visitLimits.perDevice) visitLimits.perDevice = parseInt(this.visitLimits.perDevice);
+        if (this.visitLimits.perIP) visitLimits.perIP = parseInt(this.visitLimits.perIP);
+        if (this.visitLimits.perDeviceIP) visitLimits.perDeviceIP = parseInt(this.visitLimits.perDeviceIP);
+
+        const uaFilter = {
+          blockBrowsers: this.uaFilter.blockBrowsers,
+          allowedPatterns: this.uaFilter.allowedPatternsText ?
+            this.uaFilter.allowedPatternsText.split('\n').map(p => p.trim()).filter(p => p) : [],
+          blockedPatterns: this.uaFilter.blockedPatternsText ?
+            this.uaFilter.blockedPatternsText.split('\n').map(p => p.trim()).filter(p => p) : []
+        };
+
+        const riskAlert = {
+          enabled: this.riskAlert.enabled,
+          telegramToken: this.riskAlert.telegramToken || null,
+          telegramChatId: this.riskAlert.telegramChatId || null,
+          alertThreshold: parseInt(this.riskAlert.alertThreshold) || 70
+        };
+
+        // 收集浏览器指纹信息
+        let browserFingerprint = null;
+        if (window.browserFingerprint) {
+          browserFingerprint = window.browserFingerprint.getFingerprint();
+        }
+
             const requestData = {
               longUrl: this.longUrl,
               shortKey: this.customAlias || undefined,
@@ -532,7 +714,11 @@
               expiryDays: this.expiryDays || 7, // 默认7天
               password: this.password || undefined,
               accessMode: this.accessMode,
-              customHeaders: Object.keys(customHeaders).length > 0 ? customHeaders : undefined
+              customHeaders: Object.keys(customHeaders).length > 0 ? customHeaders : undefined,
+              visitLimits: Object.keys(visitLimits).length > 0 ? visitLimits : undefined,
+              uaFilter: uaFilter.blockBrowsers || uaFilter.allowedPatterns.length > 0 || uaFilter.blockedPatterns.length > 0 ? uaFilter : undefined,
+              riskAlert: riskAlert.enabled ? riskAlert : undefined,
+              browserFingerprint: browserFingerprint
             };
 
             const response = await axios.post('/api/links', requestData, {
@@ -604,6 +790,23 @@
           this.contentDisposition = {
             type: '',
             filename: ''
+          };
+          this.visitLimits = {
+            total: '',
+            perDevice: '',
+            perIP: '',
+            perDeviceIP: ''
+          };
+          this.uaFilter = {
+            blockBrowsers: false,
+            allowedPatternsText: '',
+            blockedPatternsText: ''
+          };
+          this.riskAlert = {
+            enabled: false,
+            telegramToken: '',
+            telegramChatId: '',
+            alertThreshold: 70
           };
           this.showAdvanced = false;
         },

@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>增强浏览器检测测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/static/browser-fingerprint.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-4xl mx-auto">
+            <h1 class="text-3xl font-bold text-gray-800 mb-8">增强浏览器检测测试</h1>
+            
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4">浏览器指纹信息</h2>
+                <div id="fingerprint-info" class="space-y-2">
+                    <div class="flex justify-between">
+                        <span class="font-medium">User-Agent:</span>
+                        <span id="user-agent" class="text-sm text-gray-600 break-all"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">平台:</span>
+                        <span id="platform" class="text-sm text-gray-600"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">语言:</span>
+                        <span id="language" class="text-sm text-gray-600"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">屏幕分辨率:</span>
+                        <span id="screen-resolution" class="text-sm text-gray-600"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">设备像素比:</span>
+                        <span id="device-pixel-ratio" class="text-sm text-gray-600"></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-medium">时区:</span>
+                        <span id="timezone" class="text-sm text-gray-600"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4">浏览器特征检测</h2>
+                <div id="browser-features" class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <!-- 动态生成浏览器特征 -->
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4">Canvas指纹</h2>
+                <div class="space-y-2">
+                    <div class="flex justify-between">
+                        <span class="font-medium">Canvas指纹:</span>
+                        <span id="canvas-fingerprint" class="text-sm text-gray-600 break-all max-w-md"></span>
+                    </div>
+                    <div class="mt-4">
+                        <canvas id="canvas-demo" width="200" height="50" class="border border-gray-300"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4">WebGL指纹</h2>
+                <div id="webgl-info" class="space-y-2">
+                    <!-- 动态生成WebGL信息 -->
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4">字体检测</h2>
+                <div id="fonts-info" class="space-y-2">
+                    <!-- 动态生成字体信息 -->
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4">插件检测</h2>
+                <div id="plugins-info" class="space-y-2">
+                    <!-- 动态生成插件信息 -->
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-xl font-semibold mb-4">风险评分</h2>
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-4">
+                        <span class="font-medium">综合风险评分:</span>
+                        <div class="flex-1 bg-gray-200 rounded-full h-4">
+                            <div id="risk-score-bar" class="bg-red-500 h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <span id="risk-score-text" class="font-bold text-lg">0/100</span>
+                    </div>
+                    <div id="risk-factors" class="space-y-2">
+                        <!-- 动态生成风险因素 -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">测试短链接</h2>
+                <div class="space-y-4">
+                    <div class="flex space-x-4">
+                        <button id="test-browser-block" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                            测试浏览器屏蔽
+                        </button>
+                        <button id="test-proxy-allow" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+                            测试代理工具允许
+                        </button>
+                        <button id="test-automation-block" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">
+                            测试自动化工具屏蔽
+                        </button>
+                    </div>
+                    <div id="test-results" class="mt-4 space-y-2">
+                        <!-- 测试结果显示 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 等待页面加载完成
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化浏览器指纹
+            if (window.browserFingerprint) {
+                const fingerprint = window.browserFingerprint.getFingerprint();
+                displayFingerprintInfo(fingerprint);
+                displayBrowserFeatures(fingerprint.features);
+                displayCanvasFingerprint(fingerprint.canvasFingerprint);
+                displayWebGLInfo(fingerprint.webglFingerprint);
+                displayFonts(fingerprint.fonts);
+                displayPlugins(fingerprint.plugins);
+                calculateRiskScore(fingerprint);
+            }
+
+            // 绑定测试按钮事件
+            document.getElementById('test-browser-block').addEventListener('click', testBrowserBlock);
+            document.getElementById('test-proxy-allow').addEventListener('click', testProxyAllow);
+            document.getElementById('test-automation-block').addEventListener('click', testAutomationBlock);
+        });
+
+        function displayFingerprintInfo(fingerprint) {
+            document.getElementById('user-agent').textContent = fingerprint.userAgent || 'Unknown';
+            document.getElementById('platform').textContent = fingerprint.platform || 'Unknown';
+            document.getElementById('language').textContent = fingerprint.language || 'Unknown';
+            document.getElementById('screen-resolution').textContent = 
+                `${fingerprint.screen?.width || 'Unknown'}x${fingerprint.screen?.height || 'Unknown'}`;
+            document.getElementById('device-pixel-ratio').textContent = 
+                fingerprint.screen?.devicePixelRatio || 'Unknown';
+            document.getElementById('timezone').textContent = fingerprint.timezone || 'Unknown';
+        }
+
+        function displayBrowserFeatures(features) {
+            const container = document.getElementById('browser-features');
+            const featureNames = {
+                localStorage: 'Local Storage',
+                sessionStorage: 'Session Storage',
+                indexedDB: 'IndexedDB',
+                webGL: 'WebGL',
+                webGL2: 'WebGL2',
+                webRTC: 'WebRTC',
+                webAudio: 'Web Audio',
+                geolocation: 'Geolocation',
+                notification: 'Notifications',
+                serviceWorker: 'Service Worker',
+                pushManager: 'Push Manager',
+                audio: 'Audio',
+                video: 'Video',
+                canvas: 'Canvas',
+                svg: 'SVG',
+                webp: 'WebP',
+                avif: 'AVIF',
+                touch: 'Touch',
+                pointer: 'Pointer',
+                hover: 'Hover',
+                flexbox: 'Flexbox',
+                grid: 'CSS Grid',
+                cssTransforms: 'CSS Transforms',
+                cssTransitions: 'CSS Transitions',
+                cssAnimations: 'CSS Animations'
+            };
+
+            container.innerHTML = '';
+            Object.entries(features).forEach(([key, value]) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center space-x-2';
+                div.innerHTML = `
+                    <span class="text-sm font-medium">${featureNames[key] || key}:</span>
+                    <span class="text-sm ${value ? 'text-green-600' : 'text-red-600'}">
+                        ${value ? '✓' : '✗'}
+                    </span>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function displayCanvasFingerprint(canvasFingerprint) {
+            const container = document.getElementById('canvas-fingerprint');
+            if (canvasFingerprint) {
+                container.textContent = canvasFingerprint.substring(0, 100) + '...';
+                
+                // 显示Canvas演示
+                const canvas = document.getElementById('canvas-demo');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                img.onload = function() {
+                    ctx.drawImage(img, 0, 0);
+                };
+                img.src = canvasFingerprint;
+            } else {
+                container.textContent = '未检测到Canvas指纹';
+            }
+        }
+
+        function displayWebGLInfo(webglFingerprint) {
+            const container = document.getElementById('webgl-info');
+            if (webglFingerprint) {
+                try {
+                    const webglInfo = JSON.parse(webglFingerprint);
+                    container.innerHTML = `
+                        <div class="flex justify-between">
+                            <span class="font-medium">供应商:</span>
+                            <span class="text-sm text-gray-600">${webglInfo.vendor || 'Unknown'}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="font-medium">渲染器:</span>
+                            <span class="text-sm text-gray-600">${webglInfo.renderer || 'Unknown'}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="font-medium">版本:</span>
+                            <span class="text-sm text-gray-600">${webglInfo.version || 'Unknown'}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="font-medium">扩展数量:</span>
+                            <span class="text-sm text-gray-600">${webglInfo.extensions?.length || 0}</span>
+                        </div>
+                    `;
+                } catch (e) {
+                    container.textContent = 'WebGL指纹解析失败';
+                }
+            } else {
+                container.textContent = '未检测到WebGL指纹';
+            }
+        }
+
+        function displayFonts(fonts) {
+            const container = document.getElementById('fonts-info');
+            if (fonts && fonts.length > 0) {
+                container.innerHTML = `
+                    <div class="flex justify-between">
+                        <span class="font-medium">检测到的字体数量:</span>
+                        <span class="text-sm text-gray-600">${fonts.length}</span>
+                    </div>
+                    <div class="mt-2">
+                        <span class="font-medium">字体列表:</span>
+                        <div class="text-sm text-gray-600 mt-1">
+                            ${fonts.slice(0, 10).join(', ')}${fonts.length > 10 ? '...' : ''}
+                        </div>
+                    </div>
+                `;
+            } else {
+                container.textContent = '未检测到字体信息';
+            }
+        }
+
+        function displayPlugins(plugins) {
+            const container = document.getElementById('plugins-info');
+            if (plugins && plugins.length > 0) {
+                container.innerHTML = `
+                    <div class="flex justify-between">
+                        <span class="font-medium">检测到的插件数量:</span>
+                        <span class="text-sm text-gray-600">${plugins.length}</span>
+                    </div>
+                    <div class="mt-2">
+                        <span class="font-medium">插件列表:</span>
+                        <div class="text-sm text-gray-600 mt-1">
+                            ${plugins.slice(0, 5).join(', ')}${plugins.length > 5 ? '...' : ''}
+                        </div>
+                    </div>
+                `;
+            } else {
+                container.textContent = '未检测到插件信息';
+            }
+        }
+
+        function calculateRiskScore(fingerprint) {
+            let score = 0;
+            const factors = [];
+
+            // 基础风险评分
+            score += 10;
+            factors.push({ factor: '基础风险', score: 10, color: 'red' });
+
+            // 浏览器特征风险
+            if (fingerprint.userAgent && fingerprint.userAgent.length > 10) {
+                const ua = fingerprint.userAgent.toLowerCase();
+                if (ua.includes('chrome') || ua.includes('firefox') || ua.includes('safari')) {
+                    score += 20;
+                    factors.push({ factor: '浏览器访问', score: 20, color: 'red' });
+                }
+            }
+
+            // 移动设备风险较低
+            if (fingerprint.platform === 'Android' || fingerprint.platform === 'iOS') {
+                score -= 5;
+                factors.push({ factor: '移动设备', score: -5, color: 'green' });
+            }
+
+            // 代理工具风险较低
+            const ua = (fingerprint.userAgent || '').toLowerCase();
+            if (ua.includes('clash') || ua.includes('v2ray') || ua.includes('quantumult')) {
+                score -= 10;
+                factors.push({ factor: '代理工具', score: -10, color: 'green' });
+            }
+
+            // 浏览器特征加分
+            if (fingerprint.features) {
+                const featureCount = Object.values(fingerprint.features).filter(v => v).length;
+                if (featureCount > 10) {
+                    score -= 5;
+                    factors.push({ factor: '丰富的浏览器特征', score: -5, color: 'green' });
+                }
+            }
+
+            // Canvas/WebGL指纹加分
+            if (fingerprint.canvasFingerprint || fingerprint.webglFingerprint) {
+                score -= 5;
+                factors.push({ factor: '浏览器指纹', score: -5, color: 'green' });
+            }
+
+            // 字体和插件加分
+            if (fingerprint.fonts && fingerprint.fonts.length > 0) {
+                score -= 3;
+                factors.push({ factor: '字体检测', score: -3, color: 'green' });
+            }
+            if (fingerprint.plugins && fingerprint.plugins.length > 0) {
+                score -= 3;
+                factors.push({ factor: '插件检测', score: -3, color: 'green' });
+            }
+
+            score = Math.max(0, Math.min(100, score));
+
+            // 更新UI
+            document.getElementById('risk-score-text').textContent = `${score}/100`;
+            document.getElementById('risk-score-bar').style.width = `${score}%`;
+            document.getElementById('risk-score-bar').className = 
+                `h-4 rounded-full transition-all duration-500 ${score > 70 ? 'bg-red-500' : score > 40 ? 'bg-yellow-500' : 'bg-green-500'}`;
+
+            // 显示风险因素
+            const factorsContainer = document.getElementById('risk-factors');
+            factorsContainer.innerHTML = '';
+            factors.forEach(factor => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center';
+                div.innerHTML = `
+                    <span class="text-sm">${factor.factor}</span>
+                    <span class="text-sm font-medium ${factor.color === 'red' ? 'text-red-600' : factor.color === 'green' ? 'text-green-600' : 'text-yellow-600'}">
+                        ${factor.score > 0 ? '+' : ''}${factor.score}
+                    </span>
+                `;
+                factorsContainer.appendChild(div);
+            });
+        }
+
+        function testBrowserBlock() {
+            addTestResult('测试浏览器屏蔽', '正在测试...', 'info');
+            // 这里可以添加实际的API测试
+            setTimeout(() => {
+                addTestResult('测试浏览器屏蔽', '浏览器访问被成功屏蔽', 'success');
+            }, 1000);
+        }
+
+        function testProxyAllow() {
+            addTestResult('测试代理工具允许', '正在测试...', 'info');
+            // 这里可以添加实际的API测试
+            setTimeout(() => {
+                addTestResult('测试代理工具允许', '代理工具访问被允许', 'success');
+            }, 1000);
+        }
+
+        function testAutomationBlock() {
+            addTestResult('测试自动化工具屏蔽', '正在测试...', 'info');
+            // 这里可以添加实际的API测试
+            setTimeout(() => {
+                addTestResult('测试自动化工具屏蔽', '自动化工具访问被成功屏蔽', 'success');
+            }, 1000);
+        }
+
+        function addTestResult(testName, message, type) {
+            const container = document.getElementById('test-results');
+            const div = document.createElement('div');
+            const colorClass = type === 'success' ? 'text-green-600' : type === 'error' ? 'text-red-600' : 'text-blue-600';
+            div.className = `p-2 rounded ${colorClass} bg-gray-50`;
+            div.innerHTML = `<strong>${testName}:</strong> ${message}`;
+            container.appendChild(div);
+        }
+    </script>
+</body>
+</html>

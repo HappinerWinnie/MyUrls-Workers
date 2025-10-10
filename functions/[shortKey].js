@@ -1,6 +1,15 @@
 // functions/[shortKey].js - 短链接访问处理，支持访问次数限制等功能
 import { isExpired, verifyPassword } from './utils/crypto.js';
 import { htmlResponse, redirectResponse, notFoundResponse, forbiddenResponse } from './utils/response.js';
+import { 
+  generateDeviceFingerprint, 
+  isBrowserUserAgent, 
+  checkVisitLimits, 
+  recordVisit, 
+  checkBlocked,
+  detectAnomalies,
+  getVisitStats
+} from './utils/risk-control.js';
 
 export async function onRequest(context) {
   const { request, env, params } = context;
@@ -41,7 +50,73 @@ export async function onRequest(context) {
     return forbiddenResponse("This link has expired");
   }
 
-  // 检查访问次数限制（核心功能）
+  // 生成设备指纹和获取IP地址
+  const deviceInfo = generateDeviceFingerprint(request);
+  const ipAddress = request.headers.get('CF-Connecting-IP') || 
+                   request.headers.get('X-Forwarded-For') || 
+                   request.headers.get('X-Real-IP') || 
+                   'unknown';
+  
+  // 增强浏览器检测
+  const enhancedBrowserDetection = detectEnhancedBrowser(request, deviceInfo);
+
+  // 检查设备/IP是否被封禁
+  const blockedStatus = await checkBlocked(deviceInfo, ipAddress, kv);
+  if (blockedStatus.deviceBlocked) {
+    return forbiddenResponse(`设备已被封禁: ${blockedStatus.deviceBlockReason}`);
+  }
+  if (blockedStatus.ipBlocked) {
+    return forbiddenResponse(`IP已被封禁: ${blockedStatus.ipBlockReason}`);
+  }
+
+  // 检查UA过滤（增强版）
+  if (linkData.uaFilter?.blockBrowsers) {
+    // 使用增强的浏览器检测结果
+    if (enhancedBrowserDetection.isBrowser) {
+      return forbiddenResponse("此链接不允许浏览器访问");
+    }
+    
+    // 检查是否屏蔽自动化工具
+    if (enhancedBrowserDetection.isAutomationTool) {
+      return forbiddenResponse("自动化工具访问已被屏蔽");
+    }
+    
+    // 检查是否屏蔽爬虫
+    if (enhancedBrowserDetection.isCrawler) {
+      return forbiddenResponse("爬虫访问已被屏蔽");
+    }
+  }
+
+  // 检查UA模式匹配
+  if (linkData.uaFilter?.blockedPatterns?.length > 0) {
+    const userAgent = request.headers.get('User-Agent') || '';
+    const isBlocked = linkData.uaFilter.blockedPatterns.some(pattern => 
+      userAgent.toLowerCase().includes(pattern.toLowerCase())
+    );
+    if (isBlocked) {
+      return forbiddenResponse("User-Agent被禁止访问");
+    }
+  }
+
+  // 检查允许的UA模式
+  if (linkData.uaFilter?.allowedPatterns?.length > 0) {
+    const userAgent = request.headers.get('User-Agent') || '';
+    const isAllowed = linkData.uaFilter.allowedPatterns.some(pattern => 
+      userAgent.toLowerCase().includes(pattern.toLowerCase())
+    );
+    if (!isAllowed) {
+      return forbiddenResponse("User-Agent不在允许列表中");
+    }
+  }
+
+  // 检查风控访问限制
+  const visitLimitsCheck = await checkVisitLimits(linkData, deviceInfo, ipAddress, kv);
+  if (!visitLimitsCheck.allowed) {
+    const violation = visitLimitsCheck.violations[0];
+    return forbiddenResponse(violation.message);
+  }
+
+  // 检查传统访问次数限制（向后兼容）
   if (linkData.maxVisits > 0 && linkData.currentVisits >= linkData.maxVisits) {
     return forbiddenResponse("This link has reached its visit limit");
   }
@@ -57,15 +132,15 @@ export async function onRequest(context) {
       return await handleWarningMode(request, linkData);
     case 'proxy':
       // 更新访问统计
-      await updateVisitStats(linkData, kv, request, analytics);
+      await updateVisitStats(linkData, kv, request, analytics, deviceInfo, ipAddress);
       return await handleProxyMode(request, linkData);
     case 'iframe':
       // 更新访问统计
-      await updateVisitStats(linkData, kv, request, analytics);
+      await updateVisitStats(linkData, kv, request, analytics, deviceInfo, ipAddress);
       return await handleIframeMode(request, linkData);
     case 'redirect':
     default:
-      return await handleRedirectMode(request, linkData, kv, analytics);
+      return await handleRedirectMode(request, linkData, kv, analytics, deviceInfo, ipAddress);
   }
 }
 
@@ -221,9 +296,9 @@ async function handleIframeMode(request, linkData) {
 /**
  * 处理重定向模式（默认）
  */
-async function handleRedirectMode(request, linkData, kv, analytics) {
-  // 更新访问统计
-  await updateVisitStats(linkData, kv, request, analytics);
+async function handleRedirectMode(request, linkData, kv, analytics, deviceInfo, ipAddress) {
+  // 更新访问统计（包含增强浏览器检测信息）
+  await updateVisitStats(linkData, kv, request, analytics, deviceInfo, ipAddress, enhancedBrowserDetection);
 
   // 获取目标URL的响应头信息
   try {
@@ -314,25 +389,51 @@ function modifyHtmlContent(html, targetUrl, requestUrl) {
 /**
  * 更新访问统计
  */
-async function updateVisitStats(linkData, kv, request, analytics) {
+async function updateVisitStats(linkData, kv, request, analytics, deviceInfo, ipAddress, enhancedBrowserDetection = null) {
   try {
     // 增加访问次数
     linkData.currentVisits++;
     linkData.totalVisits++;
     linkData.lastVisitAt = new Date().toISOString();
 
-    // 记录访问历史（保留最近10次）
+    // 记录风控访问信息
+    const visitLog = await recordVisit(linkData, deviceInfo, ipAddress, kv);
+
+    // 记录访问历史（保留最近10次，包含增强浏览器检测）
     const visitRecord = {
       timestamp: new Date().toISOString(),
-      ip: request.headers.get('CF-Connecting-IP') || 'unknown',
+      ip: ipAddress,
       userAgent: request.headers.get('User-Agent') || 'unknown',
-      referer: request.headers.get('Referer') || 'direct'
+      referer: request.headers.get('Referer') || 'direct',
+      deviceId: deviceInfo.deviceId,
+      riskScore: deviceInfo.riskScore,
+      // 增强浏览器检测信息
+      browserDetection: enhancedBrowserDetection ? {
+        type: enhancedBrowserDetection.type,
+        confidence: enhancedBrowserDetection.confidence,
+        isBrowser: enhancedBrowserDetection.isBrowser,
+        isAutomationTool: enhancedBrowserDetection.isAutomationTool,
+        isCrawler: enhancedBrowserDetection.isCrawler,
+        isProxyTool: enhancedBrowserDetection.isProxyTool,
+        modernBrowserFeatures: enhancedBrowserDetection.modernBrowserFeatures
+      } : null
     };
 
     linkData.visitHistory = linkData.visitHistory || [];
     linkData.visitHistory.unshift(visitRecord);
     if (linkData.visitHistory.length > 10) {
       linkData.visitHistory = linkData.visitHistory.slice(0, 10);
+    }
+
+    // 检测异常访问模式
+    const anomalies = detectAnomalies(linkData.visitHistory);
+    if (anomalies.length > 0) {
+      console.warn(`检测到异常访问模式: ${JSON.stringify(anomalies)}`);
+      
+      // 发送风控告警
+      if (linkData.riskAlert?.enabled && linkData.riskAlert?.telegramToken) {
+        await sendRiskAlert(linkData, anomalies, visitRecord);
+      }
     }
 
     linkData.updatedAt = new Date().toISOString();
@@ -343,13 +444,71 @@ async function updateVisitStats(linkData, kv, request, analytics) {
     // 发送到 Analytics Engine（如果配置了）
     if (analytics) {
       analytics.writeDataPoint({
-        blobs: [linkData.shortKey, visitRecord.ip, visitRecord.referer],
-        doubles: [1], // 访问次数
+        blobs: [linkData.shortKey, visitRecord.ip, visitRecord.referer, deviceInfo.deviceId],
+        doubles: [1, deviceInfo.riskScore], // 访问次数和风险评分
         indexes: [linkData.shortKey]
       });
     }
   } catch (error) {
     console.error('Failed to update visit stats:', error);
+  }
+}
+
+/**
+ * 发送风控告警到Telegram
+ */
+async function sendRiskAlert(linkData, anomalies, visitRecord) {
+  try {
+    const { telegramToken, telegramChatId, alertThreshold } = linkData.riskAlert;
+    
+    if (!telegramToken || !telegramChatId) {
+      return;
+    }
+
+    // 检查风险评分是否达到告警阈值
+    if (visitRecord.riskScore < alertThreshold) {
+      return;
+    }
+
+    const message = `🚨 风控告警 - 短链接: ${linkData.shortKey}
+
+🔗 链接信息:
+• 目标URL: ${linkData.longUrl}
+• 标题: ${linkData.title || '无标题'}
+
+⚠️ 异常检测:
+${anomalies.map(anomaly => `• ${anomaly.message} (严重程度: ${anomaly.severity})`).join('\n')}
+
+📊 访问详情:
+• 设备ID: ${visitRecord.deviceId}
+• IP地址: ${visitRecord.ip}
+• 风险评分: ${visitRecord.riskScore}/100
+• User-Agent: ${visitRecord.userAgent}
+• 时间: ${new Date(visitRecord.timestamp).toLocaleString('zh-CN')}
+
+🔍 建议操作:
+• 检查访问模式是否正常
+• 考虑封禁高风险设备或IP
+• 调整风控参数`;
+
+    const telegramUrl = `https://api.telegram.org/bot${telegramToken}/sendMessage`;
+    const response = await fetch(telegramUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        chat_id: telegramChatId,
+        text: message,
+        parse_mode: 'Markdown'
+      })
+    });
+
+    if (!response.ok) {
+      console.error('Failed to send Telegram alert:', await response.text());
+    }
+  } catch (error) {
+    console.error('Error sending risk alert:', error);
   }
 }
 

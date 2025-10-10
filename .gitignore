@@ -47,3 +47,7 @@ build/
 # Temporary files
 tmp/
 temp/
+
+# tests
+tests/
+docs/

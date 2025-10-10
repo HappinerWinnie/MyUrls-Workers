@@ -4,14 +4,14 @@ import { authMiddleware } from './utils/auth.js';
 
 export async function onRequest(context) {
   const { request, env } = context;
-  const kv = env.LINKS;
+  const db = env.DB;
 
-  if (!kv) {
+  if (!db) {
     return htmlResponse("Service not configured", 500);
   }
 
   // 检查认证
-  const auth = await authMiddleware(request, env, kv);
+  const auth = await authMiddleware(request, env, db);
   
   if (!auth || !auth.isAuthenticated) {
     // 显示登录页面

@@ -1,10 +1,10 @@
 // 管理员登出API
 import { successResponse, optionsResponse, errorResponse } from '../../utils/response.js';
-import { getSessionTokenFromRequest, destroySession, clearSessionCookie } from '../../utils/auth.js';
+import { getSessionTokenFromRequest, clearSessionCookie } from '../../utils/auth.js';
 
 export async function onRequest(context) {
   const { request, env } = context;
-  const kv = env.LINKS;
+  const db = env.DB;
 
   // 处理OPTIONS预检请求
   if (request.method === 'OPTIONS') {
@@ -16,9 +16,9 @@ export async function onRequest(context) {
     return errorResponse('Method not allowed', 405, 405);
   }
 
-  // 检查KV存储
-  if (!kv) {
-    return errorResponse('KV storage not configured', 500, 500);
+  // 检查D1数据库
+  if (!db) {
+    return errorResponse('Database not configured', 500, 500);
   }
 
   try {
@@ -27,7 +27,7 @@ export async function onRequest(context) {
 
     // 销毁会话
     if (sessionToken) {
-      await destroySession(kv, sessionToken);
+      await destroySessionD1(db, sessionToken);
     }
 
     // 返回成功响应，清除Cookie

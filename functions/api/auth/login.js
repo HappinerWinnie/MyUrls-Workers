@@ -1,10 +1,10 @@
 // 管理员登录API
 import { jsonResponse, errorResponse, successResponse, optionsResponse } from '../../utils/response.js';
-import { checkAdminPassword, createSession, setSessionCookie } from '../../utils/auth.js';
+import { checkAdminPassword, createSessionD1, setSessionCookie } from '../../utils/auth.js';
 
 export async function onRequest(context) {
   const { request, env } = context;
-  const kv = env.LINKS;
+  const db = env.DB;
 
   // 处理OPTIONS预检请求
   if (request.method === 'OPTIONS') {
@@ -16,9 +16,9 @@ export async function onRequest(context) {
     return errorResponse('Method not allowed', 405, 405);
   }
 
-  // 检查KV存储
-  if (!kv) {
-    return errorResponse('KV storage not configured', 500, 500);
+  // 检查D1数据库
+  if (!db) {
+    return errorResponse('Database not configured', 500, 500);
   }
 
   try {
@@ -50,7 +50,7 @@ export async function onRequest(context) {
     }
 
     // 创建会话
-    const sessionToken = await createSession(kv, 'admin');
+    const sessionToken = await createSessionD1(db, 'admin');
 
     // 返回成功响应，设置Cookie
     const response = successResponse({

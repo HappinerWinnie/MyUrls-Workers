@@ -6,10 +6,11 @@ import {
   unauthorizedResponse 
 } from '../../utils/response.js';
 import { authMiddleware } from '../../utils/auth.js';
+import { LinkDB } from '../../utils/database.js';
 
 export async function onRequest(context) {
   const { request, env } = context;
-  const kv = env.LINKS;
+  const db = env.DB;
 
   // 处理OPTIONS预检请求
   if (request.method === 'OPTIONS') {
@@ -21,19 +22,20 @@ export async function onRequest(context) {
     return errorResponse('Method not allowed', 405, 405);
   }
 
-  // 检查KV存储
-  if (!kv) {
-    return errorResponse('KV storage not configured', 500, 500);
+  // 检查数据库配置
+  if (!db) {
+    return errorResponse('Database not configured', 500, 500);
   }
 
   // 检查认证
-  const auth = await authMiddleware(request, env, kv);
+  const auth = await authMiddleware(request, env, db);
   if (!auth || !auth.isAuthenticated) {
     return unauthorizedResponse('Authentication required');
   }
 
   try {
-    const overview = await getOverviewStats(kv);
+    const linkDB = new LinkDB(db);
+    const overview = await getOverviewStats(linkDB);
     return successResponse(overview);
 
   } catch (error) {
@@ -45,7 +47,7 @@ export async function onRequest(context) {
 /**
  * 获取总体统计数据
  */
-async function getOverviewStats(kv) {
+async function getOverviewStats(linkDB) {
   const stats = {
     totalLinks: 0,
     activeLinks: 0,
@@ -64,28 +66,10 @@ async function getOverviewStats(kv) {
     }
   };
 
-  // 获取所有链接
-  const { keys } = await kv.list({ limit: 1000 });
-  const links = [];
-  
-  for (const key of keys) {
-    if (key.name.startsWith('session:') || key.name.startsWith('stats:')) {
-      continue;
-    }
-
-    const linkDataStr = await kv.get(key.name);
-    if (linkDataStr) {
-      try {
-        const linkData = JSON.parse(linkDataStr);
-        links.push(linkData);
-      } catch (e) {
-        console.error('Error parsing link data:', e);
-      }
-    }
-  }
-
-  // 计算基本统计
-  stats.totalLinks = links.length;
+  try {
+    // 获取所有链接
+    const links = await linkDB.getAll();
+    stats.totalLinks = links.length;
   
   const now = new Date();
   const today = now.toISOString().split('T')[0];
@@ -174,5 +158,9 @@ async function getOverviewStats(kv) {
     }
   }
 
-  return stats;
+    return stats;
+  } catch (error) {
+    console.error('Error getting overview stats:', error);
+    return stats;
+  }
 }

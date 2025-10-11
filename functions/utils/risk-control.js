@@ -58,6 +58,7 @@ export function generateDeviceFingerprint(request) {
     screenInfo,
     timezone,
     modernBrowserFeatures,
+    browserFeatures: modernBrowserFeatures, // 添加browserFeatures字段
     timestamp: getCurrentTimestamp()
   };
   
@@ -351,9 +352,11 @@ function calculateBrowserConfidence(browserType, fingerprintData) {
   }
   
   // 浏览器特征头
-  const hasBrowserHeaders = Object.values(browserFeatures).some(value => value && value !== '');
-  if (hasBrowserHeaders) {
-    confidence += 0.2;
+  if (browserFeatures && typeof browserFeatures === 'object') {
+    const hasBrowserHeaders = Object.values(browserFeatures).some(value => value && value !== '');
+    if (hasBrowserHeaders) {
+      confidence += 0.2;
+    }
   }
   
   // 屏幕分辨率

@@ -7,10 +7,11 @@ import {
   forbiddenResponse 
 } from '../../utils/response.js';
 import { verifyPassword, isExpired } from '../../utils/crypto.js';
+import { LinkDB } from '../../utils/database.js';
 
 export async function onRequest(context) {
   const { request, env, params } = context;
-  const kv = env.LINKS;
+  const db = env.DB;
   const shortKey = params.shortKey;
 
   // 处理OPTIONS预检请求
@@ -23,9 +24,9 @@ export async function onRequest(context) {
     return errorResponse('Method not allowed', 405, 405);
   }
 
-  // 检查KV存储
-  if (!kv) {
-    return errorResponse('KV storage not configured', 500, 500);
+  // 检查数据库配置
+  if (!db) {
+    return errorResponse('Database not configured', 500, 500);
   }
 
   if (!shortKey) {
@@ -33,17 +34,13 @@ export async function onRequest(context) {
   }
 
   try {
+    // 创建数据库实例
+    const linkDB = new LinkDB(db);
+    
     // 获取链接数据
-    const linkDataStr = await kv.get(shortKey);
-    if (!linkDataStr) {
+    const linkData = await linkDB.getByShortKey(shortKey);
+    if (!linkData) {
       return notFoundResponse('Link not found');
-    }
-
-    let linkData;
-    try {
-      linkData = JSON.parse(linkDataStr);
-    } catch (error) {
-      return errorResponse('Invalid link data format', 500, 500);
     }
 
     // 检查链接是否激活

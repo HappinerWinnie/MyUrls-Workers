@@ -7,10 +7,11 @@ import {
   notFoundResponse 
 } from '../../utils/response.js';
 import { authMiddleware } from '../../utils/auth.js';
+import { LinkDB } from '../../utils/database.js';
 
 export async function onRequest(context) {
   const { request, env, params } = context;
-  const kv = env.LINKS;
+  const db = env.DB;
   const shortKey = params.shortKey;
 
   // 处理OPTIONS预检请求
@@ -23,13 +24,13 @@ export async function onRequest(context) {
     return errorResponse('Method not allowed', 405, 405);
   }
 
-  // 检查KV存储
-  if (!kv) {
-    return errorResponse('KV storage not configured', 500, 500);
+  // 检查数据库配置
+  if (!db) {
+    return errorResponse('Database not configured', 500, 500);
   }
 
   // 检查认证
-  const auth = await authMiddleware(request, env, kv);
+  const auth = await authMiddleware(request, env, db);
   if (!auth || !auth.isAuthenticated) {
     return unauthorizedResponse('Authentication required');
   }
@@ -39,21 +40,17 @@ export async function onRequest(context) {
   }
 
   try {
+    // 创建数据库实例
+    const linkDB = new LinkDB(db);
+    
     // 获取链接数据
-    const linkDataStr = await kv.get(shortKey);
-    if (!linkDataStr) {
+    const linkData = await linkDB.getByShortKey(shortKey);
+    if (!linkData) {
       return notFoundResponse('Link not found');
     }
 
-    let linkData;
-    try {
-      linkData = JSON.parse(linkDataStr);
-    } catch (error) {
-      return errorResponse('Invalid link data format', 500, 500);
-    }
-
     // 获取详细统计数据
-    const stats = await getDetailedStats(kv, linkData);
+    const stats = await getDetailedStats(linkDB, linkData);
 
     return successResponse(stats);
 
@@ -66,7 +63,7 @@ export async function onRequest(context) {
 /**
  * 获取详细统计数据
  */
-async function getDetailedStats(kv, linkData) {
+async function getDetailedStats(linkDB, linkData) {
   const stats = {
     basic: {
       shortKey: linkData.shortKey,

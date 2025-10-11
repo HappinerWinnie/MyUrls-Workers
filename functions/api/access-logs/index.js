@@ -5,26 +5,28 @@ export async function onRequest(context) {
   const { request, env } = context;
   
   try {
-    const kv = env.LINKS;
-    if (!kv) {
-      return errorResponse('KV storage not configured', 500);
+    const db = env.DB;
+    if (!db) {
+      return errorResponse('Database not configured', 500);
     }
     
     const url = new URL(request.url);
     const action = url.searchParams.get('action') || 'list';
+    const shortKey = url.searchParams.get('shortKey');
     
     switch (action) {
       case 'list':
-        return await getAccessLogs(kv, url);
+        return await getAccessLogs(db, url, shortKey);
       case 'stats':
-        return await getAccessStats(kv);
+        return await getAccessStats(db, shortKey);
       case 'clear':
-        return await clearAccessLogs(kv);
+        return await clearAccessLogs(db, shortKey);
       default:
         return errorResponse('Invalid action', 400);
     }
     
   } catch (error) {
+    console.error('Access logs API error:', error);
     return errorResponse(`API error: ${error.message}`, 500);
   }
 }
@@ -32,51 +34,66 @@ export async function onRequest(context) {
 /**
  * 获取访问日志列表
  */
-async function getAccessLogs(kv, url) {
+async function getAccessLogs(db, url, shortKey) {
   try {
     const limit = parseInt(url.searchParams.get('limit')) || 50;
     const offset = parseInt(url.searchParams.get('offset')) || 0;
     
-    // 获取所有访问日志
-    const { keys } = await kv.list({ prefix: 'access_log:' });
+    let sql, params;
     
-    // 按时间排序（最新的在前）
-    const sortedKeys = keys.sort((a, b) => b.name.localeCompare(a.name));
-    
-    // 分页
-    const paginatedKeys = sortedKeys.slice(offset, offset + limit);
-    
-    // 获取日志数据
-    const logs = [];
-    for (const key of paginatedKeys) {
-      const data = await kv.get(key.name);
-      if (data) {
-        const log = JSON.parse(data);
-        // 只返回必要的信息，不包含完整的调试信息
-        logs.push({
-          id: log.id,
-          timestamp: log.timestamp,
-          method: log.method,
-          url: log.url,
-          userAgent: log.userAgent,
-          isProxyTool: log.isProxyTool,
-          proxyToolType: log.proxyToolType,
-          headers: log.headers,
-          cfInfo: log.cfInfo,
-          stats: log.stats
-        });
-      }
+    if (shortKey) {
+      // 获取特定短链接的访问日志
+      sql = `
+        SELECT al.*, l.short_key, l.long_url
+        FROM access_logs al
+        JOIN links l ON al.link_id = l.id
+        WHERE l.short_key = ?
+        ORDER BY al.visit_timestamp DESC
+        LIMIT ? OFFSET ?
+      `;
+      params = [shortKey, limit, offset];
+    } else {
+      // 获取所有访问日志
+      sql = `
+        SELECT al.*, l.short_key, l.long_url
+        FROM access_logs al
+        JOIN links l ON al.link_id = l.id
+        ORDER BY al.visit_timestamp DESC
+        LIMIT ? OFFSET ?
+      `;
+      params = [limit, offset];
     }
     
+    const logs = await db.prepare(sql).bind(...params).all();
+    
+    // 获取总数
+    let countSql, countParams;
+    if (shortKey) {
+      countSql = `
+        SELECT COUNT(*) as total
+        FROM access_logs al
+        JOIN links l ON al.link_id = l.id
+        WHERE l.short_key = ?
+      `;
+      countParams = [shortKey];
+    } else {
+      countSql = 'SELECT COUNT(*) as total FROM access_logs';
+      countParams = [];
+    }
+    
+    const countResult = await db.prepare(countSql).bind(...countParams).first();
+    const total = countResult?.total || 0;
+    
     return successResponse({
-      logs,
-      total: keys.length,
+      logs: logs.results || [],
+      total,
       limit,
       offset,
-      hasMore: offset + limit < keys.length
+      hasMore: offset + limit < total
     });
     
   } catch (error) {
+    console.error('Failed to get access logs:', error);
     return errorResponse(`Failed to get access logs: ${error.message}`, 500);
   }
 }
@@ -84,24 +101,48 @@ async function getAccessLogs(kv, url) {
 /**
  * 获取访问统计
  */
-async function getAccessStats(kv) {
+async function getAccessStats(db, shortKey) {
   try {
-    const statsData = await kv.get('access_stats');
+    let sql, params;
     
-    if (!statsData) {
-      return successResponse({
-        total: 0,
-        proxy: 0,
-        browser: 0,
-        unknown: 0,
-        lastUpdated: null
-      });
+    if (shortKey) {
+      // 获取特定短链接的统计
+      sql = `
+        SELECT 
+          COUNT(*) as total,
+          COUNT(CASE WHEN is_proxy_tool = 1 THEN 1 END) as proxy,
+          COUNT(CASE WHEN is_proxy_tool = 0 THEN 1 END) as browser,
+          COUNT(CASE WHEN is_proxy_tool IS NULL THEN 1 END) as unknown
+        FROM access_logs al
+        JOIN links l ON al.link_id = l.id
+        WHERE l.short_key = ?
+      `;
+      params = [shortKey];
+    } else {
+      // 获取所有访问统计
+      sql = `
+        SELECT 
+          COUNT(*) as total,
+          COUNT(CASE WHEN is_proxy_tool = 1 THEN 1 END) as proxy,
+          COUNT(CASE WHEN is_proxy_tool = 0 THEN 1 END) as browser,
+          COUNT(CASE WHEN is_proxy_tool IS NULL THEN 1 END) as unknown
+        FROM access_logs
+      `;
+      params = [];
     }
     
-    const stats = JSON.parse(statsData);
-    return successResponse(stats);
+    const stats = await db.prepare(sql).bind(...params).first();
+    
+    return successResponse({
+      total: stats?.total || 0,
+      proxy: stats?.proxy || 0,
+      browser: stats?.browser || 0,
+      unknown: stats?.unknown || 0,
+      lastUpdated: new Date().toISOString()
+    });
     
   } catch (error) {
+    console.error('Failed to get access stats:', error);
     return errorResponse(`Failed to get access stats: ${error.message}`, 500);
   }
 }
@@ -109,25 +150,35 @@ async function getAccessStats(kv) {
 /**
  * 清空访问日志
  */
-async function clearAccessLogs(kv) {
+async function clearAccessLogs(db, shortKey) {
   try {
-    // 获取所有访问日志键
-    const { keys } = await kv.list({ prefix: 'access_log:' });
+    let sql, params;
     
-    // 删除所有访问日志
-    for (const key of keys) {
-      await kv.delete(key.name);
+    if (shortKey) {
+      // 清空特定短链接的访问日志
+      sql = `
+        DELETE FROM access_logs 
+        WHERE link_id IN (SELECT id FROM links WHERE short_key = ?)
+      `;
+      params = [shortKey];
+    } else {
+      // 清空所有访问日志
+      sql = 'DELETE FROM access_logs';
+      params = [];
     }
     
-    // 重置统计
-    await kv.delete('access_stats');
+    const result = await db.prepare(sql).bind(...params).run();
+    const deletedCount = result.changes || 0;
     
     return successResponse({
-      message: 'Access logs cleared successfully',
-      deletedCount: keys.length
+      message: shortKey ? 
+        `Access logs for ${shortKey} cleared successfully` : 
+        'All access logs cleared successfully',
+      deletedCount
     });
     
   } catch (error) {
+    console.error('Failed to clear access logs:', error);
     return errorResponse(`Failed to clear access logs: ${error.message}`, 500);
   }
 }

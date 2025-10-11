@@ -133,15 +133,22 @@ export class LinkDB extends Database {
    * 根据短键获取链接
    */
   async getLinkByShortKey(shortKey) {
-    const sql = `
-      SELECT l.*, 
-             rcc.visit_limits, rcc.ua_filter, rcc.risk_alert, rcc.country_restriction
-      FROM links l
-      LEFT JOIN risk_control_configs rcc ON l.id = rcc.link_id
-      WHERE l.short_key = ? AND l.is_active = 1
-    `;
-    
-    return await this.queryFirst(sql, [shortKey]);
+    try {
+      const sql = `SELECT * FROM links WHERE short_key = ? AND is_active = 1`;
+      console.log('getLinkByShortKey query:', { sql, shortKey });
+      
+      const result = await this.queryFirst(sql, [shortKey]);
+      console.log('getLinkByShortKey result:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('getLinkByShortKey error:', {
+        message: error.message,
+        stack: error.stack,
+        shortKey
+      });
+      throw error;
+    }
   }
 
   /**
@@ -150,12 +157,22 @@ export class LinkDB extends Database {
   async getAllLinks(limit = 100, offset = 0, sortBy = 'created_at', sortOrder = 'desc') {
     try {
       // 验证排序字段
-      const allowedSortFields = ['created_at', 'short_key', 'long_url', 'title', 'visit_count'];
+      const allowedSortFields = ['created_at', 'short_key', 'long_url', 'title', 'current_visits', 'max_visits', 'is_active'];
       const validSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
       const validSortOrder = ['asc', 'desc'].includes(sortOrder.toLowerCase()) ? sortOrder.toUpperCase() : 'DESC';
       
       const sql = `
-        SELECT * FROM links
+        SELECT *,
+               current_visits as visit_count,
+               CASE 
+                 WHEN expires_at IS NOT NULL AND expires_at < datetime('now') THEN 1
+                 ELSE 0
+               END as is_expired,
+               CASE 
+                 WHEN max_visits > 0 AND current_visits >= max_visits THEN 1
+                 ELSE 0
+               END as is_limit_reached
+        FROM links
         ORDER BY ${validSortBy} ${validSortOrder}
         LIMIT ? OFFSET ?
       `;
@@ -190,7 +207,17 @@ export class LinkDB extends Database {
       const validSortOrder = ['asc', 'desc'].includes(sortOrder.toLowerCase()) ? sortOrder.toUpperCase() : 'DESC';
       
       const sql = `
-        SELECT * FROM links
+        SELECT *,
+               current_visits as visit_count,
+               CASE 
+                 WHEN expires_at IS NOT NULL AND expires_at < datetime('now') THEN 1
+                 ELSE 0
+               END as is_expired,
+               CASE 
+                 WHEN max_visits > 0 AND current_visits >= max_visits THEN 1
+                 ELSE 0
+               END as is_limit_reached
+        FROM links
         WHERE short_key LIKE ? OR long_url LIKE ? OR title LIKE ? OR description LIKE ?
         ORDER BY ${validSortBy} ${validSortOrder}
         LIMIT ? OFFSET ?

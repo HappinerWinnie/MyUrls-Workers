@@ -7,10 +7,11 @@ import {
 } from '../../utils/response.js';
 import { getCurrentTimestamp } from '../../utils/crypto.js';
 import { authMiddleware } from '../../utils/auth.js';
+import { LinkDB } from '../../utils/database.js';
 
 export async function onRequest(context) {
   const { request, env } = context;
-  const kv = env.LINKS;
+  const db = env.DB;
 
   // 处理OPTIONS预检请求
   if (request.method === 'OPTIONS') {
@@ -22,13 +23,13 @@ export async function onRequest(context) {
     return errorResponse('Method not allowed', 405, 405);
   }
 
-  // 检查KV存储
-  if (!kv) {
-    return errorResponse('KV storage not configured', 500, 500);
+  // 检查数据库配置
+  if (!db) {
+    return errorResponse('Database not configured', 500, 500);
   }
 
   // 检查认证
-  const auth = await authMiddleware(request, env, kv);
+  const auth = await authMiddleware(request, env, db);
   if (!auth || !auth.isAuthenticated) {
     return unauthorizedResponse('Authentication required');
   }
@@ -54,20 +55,22 @@ export async function onRequest(context) {
       return errorResponse('Maximum 100 links can be processed at once', 400);
     }
 
+    // 创建数据库实例
+    const linkDB = new LinkDB(db);
     let results = [];
 
     switch (action) {
       case 'delete':
-        results = await batchDelete(kv, shortKeys);
+        results = await batchDelete(linkDB, shortKeys);
         break;
       case 'enable':
-        results = await batchUpdateStatus(kv, shortKeys, true);
+        results = await batchUpdateStatus(linkDB, shortKeys, true);
         break;
       case 'disable':
-        results = await batchUpdateStatus(kv, shortKeys, false);
+        results = await batchUpdateStatus(linkDB, shortKeys, false);
         break;
       case 'export':
-        results = await batchExport(kv, shortKeys);
+        results = await batchExport(linkDB, shortKeys);
         break;
       default:
         return errorResponse('Invalid action. Supported actions: delete, enable, disable, export', 400);
@@ -88,21 +91,15 @@ export async function onRequest(context) {
 /**
  * 批量删除链接
  */
-async function batchDelete(kv, shortKeys) {
+async function batchDelete(linkDB, shortKeys) {
   const results = [];
 
   for (const shortKey of shortKeys) {
     try {
-      const linkDataStr = await kv.get(shortKey);
-      if (linkDataStr) {
+      const linkData = await linkDB.getByShortKey(shortKey);
+      if (linkData) {
         // 删除链接数据
-        await kv.delete(shortKey);
-        
-        // 删除相关的统计数据
-        const { keys } = await kv.list({ prefix: `stats:${shortKey}:` });
-        for (const key of keys) {
-          await kv.delete(key.name);
-        }
+        await linkDB.delete(linkData.id);
 
         results.push({
           shortKey,
@@ -131,18 +128,17 @@ async function batchDelete(kv, shortKeys) {
 /**
  * 批量更新链接状态
  */
-async function batchUpdateStatus(kv, shortKeys, isActive) {
+async function batchUpdateStatus(linkDB, shortKeys, isActive) {
   const results = [];
 
   for (const shortKey of shortKeys) {
     try {
-      const linkDataStr = await kv.get(shortKey);
-      if (linkDataStr) {
-        const linkData = JSON.parse(linkDataStr);
+      const linkData = await linkDB.getByShortKey(shortKey);
+      if (linkData) {
         linkData.isActive = isActive;
         linkData.updatedAt = getCurrentTimestamp();
         
-        await kv.put(shortKey, JSON.stringify(linkData));
+        await linkDB.update(linkData.id, linkData);
 
         results.push({
           shortKey,
@@ -171,15 +167,13 @@ async function batchUpdateStatus(kv, shortKeys, isActive) {
 /**
  * 批量导出链接数据
  */
-async function batchExport(kv, shortKeys) {
+async function batchExport(linkDB, shortKeys) {
   const results = [];
 
   for (const shortKey of shortKeys) {
     try {
-      const linkDataStr = await kv.get(shortKey);
-      if (linkDataStr) {
-        const linkData = JSON.parse(linkDataStr);
-        
+      const linkData = await linkDB.getByShortKey(shortKey);
+      if (linkData) {
         results.push({
           shortKey,
           success: true,

@@ -6,10 +6,11 @@ import {
     sanitizeUrl,
     getCurrentTimestamp
 } from './utils/crypto.js';
+import { LinkDB } from './utils/database.js';
 
 export async function onRequest(context) {
     const { request, env } = context;
-    const kv = env.LINKS;
+    const db = env.DB;
 
     // CORS 头部配置
     const corsHeaders = {
@@ -19,11 +20,11 @@ export async function onRequest(context) {
         'Content-Type': 'application/json'
     };
 
-    // 检查 kv 是否有值
-    if (!kv) {
+    // 检查数据库是否有值
+    if (!db) {
         return new Response(JSON.stringify({
             Code: 201,
-            Message: '请去Pages控制台-设置 将变量名称设定为“LINKS”并绑定KV命名空间然后重试部署！'
+            Message: '请去Pages控制台-设置 将变量名称设定为"DB"并绑定D1数据库然后重试部署！'
         }), {
             status: 200,
             headers: corsHeaders
@@ -69,7 +70,7 @@ export async function onRequest(context) {
             });
         }
 
-        return await handleUrlStorage(kv, longUrl, shortKey);
+        return await handleUrlStorage(db, longUrl, shortKey);
     } 
     
     // 处理 POST 请求
@@ -100,7 +101,7 @@ export async function onRequest(context) {
             });
         }
 
-        return await handleUrlStorage(kv, longUrl, shortKey);
+        return await handleUrlStorage(db, longUrl, shortKey);
     }
 
     // 不支持的请求方法
@@ -115,7 +116,7 @@ export async function onRequest(context) {
     /**
      * 处理 URL 存储逻辑 - 更新为新的数据结构
      */
-    async function handleUrlStorage(kv, longUrl, shortKey) {
+    async function handleUrlStorage(db, longUrl, shortKey) {
         // 验证和清理URL
         longUrl = sanitizeUrl(longUrl);
         if (!isValidUrl(longUrl)) {
@@ -128,9 +129,12 @@ export async function onRequest(context) {
             });
         }
 
+        // 创建数据库实例
+        const linkDB = new LinkDB(db);
+        
         if (shortKey) {
-            const existingValue = await kv.get(shortKey);
-            if (existingValue) {
+            const existingLink = await linkDB.getByShortKey(shortKey);
+            if (existingLink) {
                 return new Response(JSON.stringify({
                     Code: 201,
                     Message: `The custom shortKey \"${shortKey}\" already exists.`
@@ -143,7 +147,7 @@ export async function onRequest(context) {
             // 生成随机key，确保不重复
             do {
                 shortKey = generateRandomKey(6);
-            } while (await kv.get(shortKey));
+            } while (await linkDB.getByShortKey(shortKey));
         }
 
         // 创建新的数据结构
@@ -168,7 +172,7 @@ export async function onRequest(context) {
             visitHistory: []
         };
 
-        await kv.put(shortKey, JSON.stringify(linkData));
+        await linkDB.create(linkData);
         const shortUrl = `https://${request.headers.get("host")}/${shortKey}`;
         return new Response(JSON.stringify({
             Code: 1,

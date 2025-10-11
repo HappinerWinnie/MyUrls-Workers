@@ -20,10 +20,11 @@ import {
   generateRandomKey
 } from '../../utils/crypto.js';
 import { authMiddleware } from '../../utils/auth.js';
+import { LinkDB } from '../../utils/database.js';
 
 export async function onRequest(context) {
   const { request, env, params } = context;
-  const kv = env.LINKS;
+  const db = env.DB;
   const shortKey = params.shortKey;
 
   // 处理OPTIONS预检请求
@@ -31,37 +32,33 @@ export async function onRequest(context) {
     return optionsResponse();
   }
 
-  // 检查KV存储
-  if (!kv) {
-    return errorResponse('KV storage not configured', 500, 500);
+  // 检查数据库配置
+  if (!db) {
+    return errorResponse('Database not configured', 500, 500);
   }
 
   // 检查认证
-  const auth = await authMiddleware(request, env, kv);
+  const auth = await authMiddleware(request, env, null);
   if (!auth || !auth.isAuthenticated) {
     return unauthorizedResponse('Authentication required');
   }
 
-  // 获取链接数据
-  const linkDataStr = await kv.get(shortKey);
-  if (!linkDataStr) {
-    return notFoundResponse('Link not found');
-  }
+  // 创建数据库实例
+  const linkDB = new LinkDB(db);
 
-  let linkData;
-  try {
-    linkData = JSON.parse(linkDataStr);
-  } catch (error) {
-    return errorResponse('Invalid link data format', 500, 500);
+  // 获取链接数据
+  const linkData = await linkDB.getByShortKey(shortKey);
+  if (!linkData) {
+    return notFoundResponse('Link not found');
   }
 
   switch (request.method) {
     case 'GET':
       return await getLinkDetails(linkData);
     case 'PUT':
-      return await updateLink(request, kv, linkData);
+      return await updateLink(request, linkDB, linkData);
     case 'DELETE':
-      return await deleteLink(kv, shortKey);
+      return await deleteLink(linkDB, shortKey);
     default:
       return errorResponse('Method not allowed', 405, 405);
   }
@@ -112,7 +109,7 @@ async function getLinkDetails(linkData) {
 /**
  * 更新链接 - 支持所有前台字段的修改
  */
-async function updateLink(request, kv, linkData) {
+async function updateLink(request, linkDB, linkData) {
   try {
     const contentType = request.headers.get('Content-Type');
     let updateData;
@@ -179,13 +176,12 @@ async function updateLink(request, kv, linkData) {
       }
 
       // 检查新的shortKey是否已存在
-      const existingLink = await kv.get(newShortKey);
+      const existingLink = await linkDB.getByShortKey(newShortKey);
       if (existingLink) {
         return errorResponse(`Short key "${newShortKey}" already exists`, 409);
       }
 
-      // 删除旧的key，使用新的key保存
-      await kv.delete(linkData.shortKey);
+      // 更新shortKey
       linkData.shortKey = newShortKey;
     }
 
@@ -284,10 +280,7 @@ async function updateLink(request, kv, linkData) {
     linkData.updatedAt = getCurrentTimestamp();
 
     // 保存更新后的数据
-    await kv.put(linkData.shortKey, JSON.stringify(linkData));
-
-    // 清除链接索引缓存
-    await invalidateLinksCache(kv);
+    await linkDB.update(linkData.id, linkData);
 
     return successResponse({
       id: linkData.id,
@@ -314,19 +307,16 @@ async function updateLink(request, kv, linkData) {
 /**
  * 删除链接
  */
-async function deleteLink(kv, shortKey) {
+async function deleteLink(linkDB, shortKey) {
   try {
-    // 删除链接数据
-    await kv.delete(shortKey);
-
-    // 删除相关的统计数据（如果有的话）
-    const { keys } = await kv.list({ prefix: `stats:${shortKey}:` });
-    for (const key of keys) {
-      await kv.delete(key.name);
+    // 获取链接数据以获取ID
+    const linkData = await linkDB.getByShortKey(shortKey);
+    if (!linkData) {
+      return notFoundResponse('Link not found');
     }
 
-    // 清除链接索引缓存
-    await invalidateLinksCache(kv);
+    // 删除链接数据
+    await linkDB.delete(linkData.id);
 
     return successResponse(null, 'Link deleted successfully');
 
@@ -397,14 +387,3 @@ function buildContentDisposition(contentDisposition) {
   return `${type}; filename*=UTF-8''${encodedFilename}`;
 }
 
-/**
- * 清除链接缓存
- */
-async function invalidateLinksCache(kv) {
-  try {
-    await kv.delete('links:index');
-    console.log('Links cache invalidated');
-  } catch (error) {
-    console.error('Failed to invalidate links cache:', error);
-  }
-}

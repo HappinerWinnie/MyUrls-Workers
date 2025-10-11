@@ -1,4 +1,4 @@
-// 缓存管理API
+// 数据库状态管理API
 import { 
   successResponse, 
   errorResponse, 
@@ -6,53 +6,46 @@ import {
   unauthorizedResponse 
 } from '../../utils/response.js';
 import { authMiddleware } from '../../utils/auth.js';
+import { LinkDB } from '../../utils/database.js';
 
 export async function onRequest(context) {
   const { request, env } = context;
-  const kv = env.LINKS;
+  const db = env.DB;
 
   // 处理OPTIONS预检请求
   if (request.method === 'OPTIONS') {
     return optionsResponse();
   }
 
-  // 检查KV存储
-  if (!kv) {
-    return errorResponse('KV storage not configured', 500, 500);
+  // 检查数据库配置
+  if (!db) {
+    return errorResponse('Database not configured', 500, 500);
   }
 
   // 检查认证
-  const auth = await authMiddleware(request, env, kv);
+  const auth = await authMiddleware(request, env, db);
   if (!auth || !auth.isAuthenticated) {
     return unauthorizedResponse('Authentication required');
   }
 
   switch (request.method) {
     case 'DELETE':
-      return await clearLinksCache(kv);
+      return await clearDatabaseCache(db);
     case 'GET':
-      return await getCacheStatus(kv);
+      return await getDatabaseStatus(db);
     default:
       return errorResponse('Method not allowed', 405, 405);
   }
 }
 
 /**
- * 清除链接缓存
+ * 清除数据库缓存（D1数据库不需要手动清除缓存）
  */
-async function clearLinksCache(kv) {
+async function clearDatabaseCache(db) {
   try {
-    // 清除链接索引缓存
-    await kv.delete('links:index');
-    
-    // 清除其他相关缓存
-    const { keys } = await kv.list({ prefix: 'cache:' });
-    for (const key of keys) {
-      await kv.delete(key.name);
-    }
-
-    console.log('All links cache cleared');
-    return successResponse(null, 'Cache cleared successfully');
+    // D1数据库会自动管理缓存，这里只是返回成功消息
+    console.log('Database cache management not needed for D1');
+    return successResponse(null, 'Database cache is automatically managed');
   } catch (error) {
     console.error('Clear cache error:', error);
     return errorResponse('Failed to clear cache', 500, 500);
@@ -60,40 +53,34 @@ async function clearLinksCache(kv) {
 }
 
 /**
- * 获取缓存状态
+ * 获取数据库状态
  */
-async function getCacheStatus(kv) {
+async function getDatabaseStatus(db) {
   try {
-    const cacheStatus = {
-      linksIndex: null,
-      cacheKeys: []
+    const linkDB = new LinkDB(db);
+    
+    // 获取数据库统计信息
+    const stats = {
+      databaseType: 'D1',
+      totalLinks: 0,
+      activeLinks: 0,
+      totalVisits: 0,
+      lastUpdated: new Date().toISOString()
     };
 
-    // 检查链接索引缓存
     try {
-      const indexCache = await kv.get('links:index');
-      if (indexCache) {
-        const parsed = JSON.parse(indexCache);
-        cacheStatus.linksIndex = {
-          exists: true,
-          timestamp: parsed.timestamp,
-          count: parsed.count,
-          age: Date.now() - parsed.timestamp
-        };
-      } else {
-        cacheStatus.linksIndex = { exists: false };
-      }
-    } catch (e) {
-      cacheStatus.linksIndex = { exists: false, error: e.message };
+      const links = await linkDB.getAll();
+      stats.totalLinks = links.length;
+      stats.activeLinks = links.filter(link => link.isActive).length;
+      stats.totalVisits = links.reduce((sum, link) => sum + (link.totalVisits || 0), 0);
+    } catch (error) {
+      console.error('Error getting database stats:', error);
+      stats.error = error.message;
     }
 
-    // 获取所有缓存键
-    const { keys } = await kv.list({ prefix: 'cache:' });
-    cacheStatus.cacheKeys = keys.map(key => key.name);
-
-    return successResponse(cacheStatus);
+    return successResponse(stats);
   } catch (error) {
-    console.error('Get cache status error:', error);
-    return errorResponse('Failed to get cache status', 500, 500);
+    console.error('Get database status error:', error);
+    return errorResponse('Failed to get database status', 500, 500);
   }
 }

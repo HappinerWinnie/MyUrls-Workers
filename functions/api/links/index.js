@@ -209,11 +209,15 @@ async function getLinks(request, db, isAuthenticated) {
 
     return successResponse({
       links,
-      stats,
       pagination: {
+        page,
         limit,
         offset,
-        total: stats.totalLinks
+        total: stats.totalLinks,
+        totalPages: Math.ceil(stats.totalLinks / limit)
+      },
+      meta: {
+        stats: stats
       }
     });
 

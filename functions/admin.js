@@ -421,18 +421,18 @@ function getAdminPage() {
                                 <tr v-for="link in links" :key="link.id">
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm font-medium text-blue-600">
-                                            <a :href="'/' + link.shortKey" target="_blank">{{ link.shortKey }}</a>
+                                            <a :href="'/' + link.short_key" target="_blank">{{ link.short_key }}</a>
                                         </div>
                                         <div v-if="link.title" class="text-sm text-gray-500">{{ link.title }}</div>
                                     </td>
                                     <td class="px-6 py-4">
-                                        <div class="text-sm text-gray-900 max-w-xs truncate" :title="link.longUrl">
-                                            {{ link.longUrl }}
+                                        <div class="text-sm text-gray-900 max-w-xs truncate" :title="link.long_url">
+                                            {{ link.long_url }}
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                        <div>{{ link.currentVisits }}{{ link.maxVisits > 0 ? '/' + link.maxVisits : '' }}</div>
-                                        <div class="text-xs text-gray-500">总计: {{ link.totalVisits }}</div>
+                                        <div>{{ link.visit_count || 0 }}{{ link.max_visits > 0 ? '/' + link.max_visits : '' }}</div>
+                                        <div class="text-xs text-gray-500">{{ formatVisitStats(link) }}</div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span :class="getStatusClass(link)" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
@@ -440,7 +440,7 @@ function getAdminPage() {
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {{ formatDate(link.createdAt) }}
+                                        {{ formatDate(link.created_at) }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                         <button @click="viewAccessLogs(link)" class="text-purple-600 hover:text-purple-900 mr-3">访问记录</button>
@@ -459,7 +459,7 @@ function getAdminPage() {
                             <div class="flex justify-between items-start mb-3">
                                 <div class="flex-1 min-w-0">
                                     <div class="text-sm font-medium text-blue-600 truncate">
-                                        <a :href="'/' + link.shortKey" target="_blank">{{ link.shortKey }}</a>
+                                        <a :href="'/' + link.short_key" target="_blank">{{ link.short_key }}</a>
                                     </div>
                                     <div v-if="link.title" class="text-sm text-gray-500 truncate">{{ link.title }}</div>
                                 </div>
@@ -468,17 +468,17 @@ function getAdminPage() {
                                 </span>
                             </div>
 
-                            <div class="text-sm text-gray-900 mb-2 truncate" :title="link.longUrl">
-                                <span class="font-medium">目标:</span> {{ link.longUrl }}
+                            <div class="text-sm text-gray-900 mb-2 truncate" :title="link.long_url">
+                                <span class="font-medium">目标:</span> {{ link.long_url }}
                             </div>
 
                             <div class="flex justify-between items-center text-sm text-gray-500 mb-3">
                                 <div>
                                     <span class="font-medium">访问:</span>
-                                    {{ link.currentVisits }}{{ link.maxVisits > 0 ? '/' + link.maxVisits : '' }}
-                                    (总计: {{ link.totalVisits }})
+                                    {{ link.visit_count || 0 }}{{ link.max_visits > 0 ? '/' + link.max_visits : '' }}
+                                    ({{ formatVisitStats(link) }})
                                 </div>
-                                <div>{{ formatDate(link.createdAt) }}</div>
+                                <div>{{ formatDate(link.created_at) }}</div>
                             </div>
 
                             <div class="flex space-x-3">
@@ -939,7 +939,7 @@ function getAdminPage() {
                     if (!confirm('确定要删除这个链接吗？')) return;
                     
                     try {
-                        const response = await axios.delete(\`/api/links/\${link.shortKey}\`);
+                        const response = await axios.delete('/api/links/' + link.short_key);
                         if (response.data.success) {
                             await this.loadLinks();
                             alert('删除成功');
@@ -953,7 +953,7 @@ function getAdminPage() {
                 
                 editLink(link) {
                     // 解析自定义响应头
-                    const customHeaders = link.customHeaders || {};
+                    const customHeaders = link.custom_headers ? JSON.parse(link.custom_headers) : {};
                     const subscriptionInfo = this.parseSubscriptionUserinfo(customHeaders['subscription-userinfo']);
                     const contentDisposition = this.parseContentDisposition(customHeaders['content-disposition']);
 
@@ -964,23 +964,23 @@ function getAdminPage() {
 
                     this.editingLink = {
                         id: link.id,
-                        shortKey: link.shortKey,
-                        longUrl: link.longUrl,
+                        shortKey: link.short_key,
+                        longUrl: link.long_url,
                         title: link.title || '',
                         description: link.description || '',
-                        maxVisits: link.maxVisits,
-                        currentVisits: link.currentVisits,
+                        maxVisits: link.max_visits,
+                        currentVisits: link.visit_count || 0,
                         expiryDays: '', // 重新设置有效期
                         password: '', // 不显示现有密码
-                        accessMode: link.accessMode || 'redirect',
-                        isActive: link.isActive,
+                        accessMode: link.access_mode || 'redirect',
+                        isActive: link.is_active !== false,
                         tagsString: (link.tags || []).join(', '),
                         subscriptionInfo: subscriptionInfo,
                         contentDisposition: contentDisposition,
                         customHeadersJson: Object.keys(otherHeaders).length > 0 ? JSON.stringify(otherHeaders, null, 2) : ''
                     };
-                    this.originalMaxVisits = link.maxVisits;
-                    this.originalShortKey = link.shortKey;
+                    this.originalMaxVisits = link.max_visits;
+                    this.originalShortKey = link.short_key;
                     this.showEditModal = true;
                 },
 
@@ -1045,7 +1045,7 @@ function getAdminPage() {
                 },
 
                 copyLink(link) {
-                    const url = window.location.origin + '/' + link.shortKey;
+                    const url = window.location.origin + '/' + link.short_key;
                     navigator.clipboard.writeText(url).then(() => {
                         alert('链接已复制到剪贴板');
                     });
@@ -1085,31 +1085,32 @@ function getAdminPage() {
                 },
                 
                 updateStats() {
-                    this.stats.totalLinks = this.links.length;
-                    this.stats.totalVisits = this.links.reduce((sum, link) => sum + link.totalVisits, 0);
-                    this.stats.activeLinks = this.links.filter(link => link.isActive).length;
-                    
-                    // 计算今日访问量（简化实现）
-                    const today = new Date().toDateString();
-                    this.stats.todayVisits = this.links.reduce((sum, link) => {
-                        if (link.lastVisitAt && new Date(link.lastVisitAt).toDateString() === today) {
-                            return sum + 1;
-                        }
-                        return sum;
-                    }, 0);
+                    // 使用API返回的统计数据
+                    if (this.meta && this.meta.stats) {
+                        this.stats.totalLinks = this.meta.stats.totalLinks || 0;
+                        this.stats.totalVisits = this.meta.stats.totalVisits || 0;
+                        this.stats.todayVisits = this.meta.stats.todayVisits || 0;
+                        this.stats.activeLinks = this.links.filter(link => link.is_active !== false).length;
+                    } else {
+                        // 回退到本地计算
+                        this.stats.totalLinks = this.links.length;
+                        this.stats.totalVisits = this.links.reduce((sum, link) => sum + (link.visit_count || 0), 0);
+                        this.stats.activeLinks = this.links.filter(link => link.is_active !== false).length;
+                        this.stats.todayVisits = 0;
+                    }
                 },
                 
                 getStatusClass(link) {
-                    if (!link.isActive) return 'bg-gray-100 text-gray-800';
-                    if (link.expiresAt && new Date(link.expiresAt) < new Date()) return 'bg-red-100 text-red-800';
-                    if (link.maxVisits > 0 && link.currentVisits >= link.maxVisits) return 'bg-yellow-100 text-yellow-800';
+                    if (link.is_active === false) return 'bg-gray-100 text-gray-800';
+                    if (link.is_expired === 1) return 'bg-red-100 text-red-800';
+                    if (link.is_limit_reached === 1) return 'bg-yellow-100 text-yellow-800';
                     return 'bg-green-100 text-green-800';
                 },
                 
                 getStatusText(link) {
-                    if (!link.isActive) return '已禁用';
-                    if (link.expiresAt && new Date(link.expiresAt) < new Date()) return '已过期';
-                    if (link.maxVisits > 0 && link.currentVisits >= link.maxVisits) return '已达限制';
+                    if (link.is_active === false) return '已禁用';
+                    if (link.is_expired === 1) return '已过期';
+                    if (link.is_limit_reached === 1) return '已达限制';
                     return '正常';
                 },
                 
@@ -1357,6 +1358,40 @@ function getAdminPage() {
                     } catch (error) {
                         alert('解封失败，请重试');
                     }
+                },
+
+                // 查看访问记录
+                viewAccessLogs(link) {
+                    // 打开新窗口显示访问记录页面
+                    const url = '/access-logs?shortKey=' + link.short_key;
+                    window.open(url, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+                },
+
+                // 格式化日期
+                formatDate(dateString) {
+                    if (!dateString) return 'Invalid Date';
+                    try {
+                        const date = new Date(dateString);
+                        if (isNaN(date.getTime())) return 'Invalid Date';
+                        return date.toLocaleString('zh-CN', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                        });
+                    } catch (error) {
+                        return 'Invalid Date';
+                    }
+                },
+
+                // 格式化访问统计
+                formatVisitStats(link) {
+                    if (!link) return '总计: 0';
+                    const total = link.visit_count || 0;
+                    const today = link.today_visits || 0;
+                    return '总计: ' + total + (today > 0 ? ' (今日: ' + today + ')' : '');
                 }
             }
         }).mount('#app');

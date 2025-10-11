@@ -37,7 +37,7 @@ export function generateDeviceFingerprint(request) {
                    headers.get('X-Real-IP') || 
                    'unknown';
   // 检测现代浏览器特征（这些是真实存在的请求头）
-  const modernBrowserFeatures = detectModernBrowserFeatures(request);
+  const modernBrowserFeatures = detectModernBrowserFeatures(request) || {};
 
   // 构建指纹数据（确保所有字段都有值，即使是空值）
   const fingerprintData = {
@@ -237,7 +237,9 @@ export function isBrowserUserAgent(userAgent) {
  * 判断是否有现代浏览器特征
  */
 function hasModernBrowserFeatures(modernBrowserFeatures) {
-  // 检查现代浏览器特征
+  // 检查现代浏览器特征，确保modernBrowserFeatures不为undefined
+  if (!modernBrowserFeatures) return false;
+  
   return modernBrowserFeatures.hasSecFetch || 
          modernBrowserFeatures.hasSecChUa || 
          modernBrowserFeatures.hasUpgradeInsecureRequests || 

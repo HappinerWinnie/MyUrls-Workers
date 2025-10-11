@@ -28,43 +28,20 @@ export function generateDeviceFingerprint(request) {
   const userAgent = headers.get('User-Agent') || '';
   const acceptLanguage = headers.get('Accept-Language') || '';
   const acceptEncoding = headers.get('Accept-Encoding') || '';
-  const connection = headers.get('Connection') || '';
-  const cacheControl = headers.get('Cache-Control') || '';
   const referer = headers.get('Referer') || '';
   const origin = headers.get('Origin') || '';
-  
+
   // 获取IP地址用于设备区分
   const ipAddress = headers.get('CF-Connecting-IP') || 
                    headers.get('X-Forwarded-For') || 
                    headers.get('X-Real-IP') || 
                    'unknown';
-  
-  // 从User-Agent中提取信息
-  const platform = extractPlatform(userAgent);
-  const browser = extractBrowser(userAgent);
-  
-  // 从请求头中提取实际可用的信息
-  const screenInfo = extractScreenFromHeaders(request);
-  const timezone = extractTimezoneFromHeaders(request);
-  
   // 检测现代浏览器特征（这些是真实存在的请求头）
   const modernBrowserFeatures = detectModernBrowserFeatures(request);
-  
+
   // 构建指纹数据（确保所有字段都有值，即使是空值）
   const fingerprintData = {
     userAgent: userAgent || '',
-    acceptLanguage: acceptLanguage || '',
-    acceptEncoding: acceptEncoding || '',
-    connection: connection || '',
-    cacheControl: cacheControl || '',
-    referer: referer || '',
-    origin: origin || '',
-    platform: platform || '',
-    browser: browser || '',
-    screenInfo: screenInfo || {},
-    timezone: timezone || '',
-    modernBrowserFeatures: modernBrowserFeatures || {},
-    browserFeatures: modernBrowserFeatures || {},
     ipAddress: ipAddress || ''
   };
   
@@ -89,7 +66,23 @@ export function generateDeviceFingerprint(request) {
 function generateDeviceId(fingerprintData) {
   // 使用稳定的指纹数据生成设备ID
   const dataString = JSON.stringify(fingerprintData, Object.keys(fingerprintData).sort());
-  return btoa(dataString).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
+  
+  // 使用简单的哈希算法确保唯一性
+  let hash = 0;
+  for (let i = 0; i < dataString.length; i++) {
+    const char = dataString.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // 转换为32位整数
+  }
+  
+  // 将哈希值转换为Base64格式
+  const hashString = Math.abs(hash).toString(36);
+  const btoaResult = btoa(dataString);
+  const cleanResult = btoaResult.replace(/[^a-zA-Z0-9]/g, '');
+  
+  // 组合哈希和Base64结果
+  const combined = hashString + cleanResult;
+  return combined.substring(0, 64);
 }
 
 /**
@@ -726,8 +719,7 @@ function detectProxyTool(userAgent) {
   
   const proxyPatterns = [
     'clash', 'v2ray', 'quantumult', 'surge',
-    'shadowrocket', 'loon', 'stash', 'sing-box','karing',
-    'hysteria', 'trojan', 'ssr', 'ss'
+    'shadowrocket', 'loon', 'stash', 'sing-box', 'karing', 'egern'
   ];
   
   return proxyPatterns.some(pattern => ua.includes(pattern));

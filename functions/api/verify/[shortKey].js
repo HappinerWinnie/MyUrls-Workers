@@ -38,7 +38,7 @@ export async function onRequest(context) {
     const linkDB = new LinkDB(db);
     
     // 获取链接数据
-    const linkData = await linkDB.getByShortKey(shortKey);
+    const linkData = await linkDB.getLinkByShortKey(shortKey);
     if (!linkData) {
       return notFoundResponse('Link not found');
     }

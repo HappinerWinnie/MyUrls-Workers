@@ -1362,9 +1362,9 @@ function getAdminPage() {
 
                 // 查看访问记录
                 viewAccessLogs(link) {
-                    // 打开新窗口显示访问记录页面
+                    // 打开新标签页显示访问记录页面
                     const url = '/access-logs?shortKey=' + link.short_key;
-                    window.open(url, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+                    window.open(url, '_blank');
                 },
 
                 // 格式化日期

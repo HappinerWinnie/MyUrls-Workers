@@ -96,10 +96,10 @@ async function batchDelete(linkDB, shortKeys) {
 
   for (const shortKey of shortKeys) {
     try {
-      const linkData = await linkDB.getByShortKey(shortKey);
+      const linkData = await linkDB.getLinkByShortKey(shortKey);
       if (linkData) {
         // 删除链接数据
-        await linkDB.delete(linkData.id);
+        await linkDB.deleteLink(linkData.id);
 
         results.push({
           shortKey,
@@ -133,12 +133,12 @@ async function batchUpdateStatus(linkDB, shortKeys, isActive) {
 
   for (const shortKey of shortKeys) {
     try {
-      const linkData = await linkDB.getByShortKey(shortKey);
+      const linkData = await linkDB.getLinkByShortKey(shortKey);
       if (linkData) {
         linkData.isActive = isActive;
         linkData.updatedAt = getCurrentTimestamp();
         
-        await linkDB.update(linkData.id, linkData);
+        await linkDB.updateLink(linkData.id, linkData);
 
         results.push({
           shortKey,
@@ -172,7 +172,7 @@ async function batchExport(linkDB, shortKeys) {
 
   for (const shortKey of shortKeys) {
     try {
-      const linkData = await linkDB.getByShortKey(shortKey);
+      const linkData = await linkDB.getLinkByShortKey(shortKey);
       if (linkData) {
         results.push({
           shortKey,

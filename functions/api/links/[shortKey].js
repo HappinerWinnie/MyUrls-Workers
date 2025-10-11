@@ -47,7 +47,7 @@ export async function onRequest(context) {
   const linkDB = new LinkDB(db);
 
   // 获取链接数据
-  const linkData = await linkDB.getByShortKey(shortKey);
+  const linkData = await linkDB.getLinkByShortKey(shortKey);
   if (!linkData) {
     return notFoundResponse('Link not found');
   }
@@ -176,7 +176,7 @@ async function updateLink(request, linkDB, linkData) {
       }
 
       // 检查新的shortKey是否已存在
-      const existingLink = await linkDB.getByShortKey(newShortKey);
+      const existingLink = await linkDB.getLinkByShortKey(newShortKey);
       if (existingLink) {
         return errorResponse(`Short key "${newShortKey}" already exists`, 409);
       }
@@ -280,7 +280,7 @@ async function updateLink(request, linkDB, linkData) {
     linkData.updatedAt = getCurrentTimestamp();
 
     // 保存更新后的数据
-    await linkDB.update(linkData.id, linkData);
+    await linkDB.updateLink(linkData.id, linkData);
 
     return successResponse({
       id: linkData.id,
@@ -310,13 +310,13 @@ async function updateLink(request, linkDB, linkData) {
 async function deleteLink(linkDB, shortKey) {
   try {
     // 获取链接数据以获取ID
-    const linkData = await linkDB.getByShortKey(shortKey);
+    const linkData = await linkDB.getLinkByShortKey(shortKey);
     if (!linkData) {
       return notFoundResponse('Link not found');
     }
 
     // 删除链接数据
-    await linkDB.delete(linkData.id);
+    await linkDB.deleteLink(linkData.id);
 
     return successResponse(null, 'Link deleted successfully');
 

@@ -69,7 +69,7 @@ async function getDatabaseStatus(db) {
     };
 
     try {
-      const links = await linkDB.getAll();
+      const links = await linkDB.getAllLinks();
       stats.totalLinks = links.length;
       stats.activeLinks = links.filter(link => link.isActive).length;
       stats.totalVisits = links.reduce((sum, link) => sum + (link.totalVisits || 0), 0);

@@ -33,6 +33,12 @@ export function generateDeviceFingerprint(request) {
   const referer = headers.get('Referer') || '';
   const origin = headers.get('Origin') || '';
   
+  // 获取IP地址用于设备区分
+  const ipAddress = headers.get('CF-Connecting-IP') || 
+                   headers.get('X-Forwarded-For') || 
+                   headers.get('X-Real-IP') || 
+                   'unknown';
+  
   // 从User-Agent中提取信息
   const platform = extractPlatform(userAgent);
   const browser = extractBrowser(userAgent);
@@ -44,22 +50,22 @@ export function generateDeviceFingerprint(request) {
   // 检测现代浏览器特征（这些是真实存在的请求头）
   const modernBrowserFeatures = detectModernBrowserFeatures(request);
   
-  // 构建指纹数据（只包含实际可用的信息）
+  // 构建指纹数据（确保所有字段都有值，即使是空值）
   const fingerprintData = {
-    userAgent,
-    acceptLanguage,
-    acceptEncoding,
-    connection,
-    cacheControl,
-    referer,
-    origin,
-    platform,
-    browser,
-    screenInfo,
-    timezone,
-    modernBrowserFeatures,
-    browserFeatures: modernBrowserFeatures, // 添加browserFeatures字段
-    timestamp: getCurrentTimestamp()
+    userAgent: userAgent || '',
+    acceptLanguage: acceptLanguage || '',
+    acceptEncoding: acceptEncoding || '',
+    connection: connection || '',
+    cacheControl: cacheControl || '',
+    referer: referer || '',
+    origin: origin || '',
+    platform: platform || '',
+    browser: browser || '',
+    screenInfo: screenInfo || {},
+    timezone: timezone || '',
+    modernBrowserFeatures: modernBrowserFeatures || {},
+    browserFeatures: modernBrowserFeatures || {},
+    ipAddress: ipAddress || ''
   };
   
   // 生成设备ID
@@ -81,6 +87,7 @@ export function generateDeviceFingerprint(request) {
  * 生成设备ID
  */
 function generateDeviceId(fingerprintData) {
+  // 使用稳定的指纹数据生成设备ID
   const dataString = JSON.stringify(fingerprintData, Object.keys(fingerprintData).sort());
   return btoa(dataString).replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
 }
@@ -529,6 +536,7 @@ export function detectEnhancedBrowser(request, deviceInfo) {
     isBrowser: basicDetection.type !== 'Proxy Tool' && 
                !isAutomationTool && 
                !isCrawler &&
+               !isProxyTool &&
                (basicDetection.type !== 'Unknown' || confidence > 0.5)
   };
 }
@@ -718,7 +726,7 @@ function detectProxyTool(userAgent) {
   
   const proxyPatterns = [
     'clash', 'v2ray', 'quantumult', 'surge',
-    'shadowrocket', 'loon', 'stash', 'sing-box',
+    'shadowrocket', 'loon', 'stash', 'sing-box','karing',
     'hysteria', 'trojan', 'ssr', 'ss'
   ];
   

@@ -133,7 +133,7 @@ export async function onRequest(context) {
         const linkDB = new LinkDB(db);
         
         if (shortKey) {
-            const existingLink = await linkDB.getByShortKey(shortKey);
+            const existingLink = await linkDB.getLinkByShortKey(shortKey);
             if (existingLink) {
                 return new Response(JSON.stringify({
                     Code: 201,
@@ -147,7 +147,7 @@ export async function onRequest(context) {
             // 生成随机key，确保不重复
             do {
                 shortKey = generateRandomKey(6);
-            } while (await linkDB.getByShortKey(shortKey));
+            } while (await linkDB.getLinkByShortKey(shortKey));
         }
 
         // 创建新的数据结构
@@ -172,7 +172,7 @@ export async function onRequest(context) {
             visitHistory: []
         };
 
-        await linkDB.create(linkData);
+        await linkDB.createLink(linkData);
         const shortUrl = `https://${request.headers.get("host")}/${shortKey}`;
         return new Response(JSON.stringify({
             Code: 1,

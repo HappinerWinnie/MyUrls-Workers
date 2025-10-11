@@ -68,7 +68,7 @@ async function getOverviewStats(linkDB) {
 
   try {
     // 获取所有链接
-    const links = await linkDB.getAll();
+    const links = await linkDB.getAllLinks();
     stats.totalLinks = links.length;
   
   const now = new Date();

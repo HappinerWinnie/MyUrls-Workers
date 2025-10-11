@@ -161,7 +161,7 @@ export async function authMiddleware(request, env, db) {
  * @returns {Promise<Object|null>} 会话数据或null
  */
 export async function validateSessionD1(db, sessionToken) {
-  if (!sessionToken) {
+  if (!sessionToken || !db) {
     return null;
   }
   
@@ -194,6 +194,10 @@ export async function validateSessionD1(db, sessionToken) {
  * @returns {Promise<string>} 会话令牌
  */
 export async function createSessionD1(db, userId = 'admin') {
+  if (!db) {
+    throw new Error('Database not provided');
+  }
+  
   const sessionToken = generateSessionToken();
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   
@@ -223,7 +227,7 @@ export async function createSessionD1(db, userId = 'admin') {
  * @returns {Promise<void>}
  */
 export async function destroySessionD1(db, sessionToken) {
-  if (!sessionToken) {
+  if (!sessionToken || !db) {
     return;
   }
   

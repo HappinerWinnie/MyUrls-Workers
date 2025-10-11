@@ -211,7 +211,7 @@ export async function onRequest(context) {
                     </div>
 
                     <!-- 移动端卡片布局 -->
-                    <div v-else class="md:hidden space-y-4">
+                    <div v-else-if="logs.length > 0" class="md:hidden space-y-4">
                         <div v-for="log in logs" :key="log.id" class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm fade-in">
                             <div class="flex justify-between items-start mb-3">
                                 <div class="flex-1 min-w-0">
@@ -301,6 +301,7 @@ export async function onRequest(context) {
                 }
             },
             mounted() {
+                console.log('Vue app mounted, shortKey:', this.shortKey);
                 this.loadData();
             },
             methods: {
@@ -451,5 +452,5 @@ export async function onRequest(context) {
 </html>
   `;
 
-  return htmlResponse(htmlContent.replace('${shortKey || ""}', shortKey || ''));
+  return htmlResponse(htmlContent.replace(/\$\{shortKey \|\| ""\}/g, shortKey || ''));
 }

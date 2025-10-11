@@ -38,7 +38,7 @@ export async function onRequest(context) {
   }
 
   // 检查认证
-  const auth = await authMiddleware(request, env, null);
+  const auth = await authMiddleware(request, env, db);
   if (!auth || !auth.isAuthenticated) {
     return unauthorizedResponse('Authentication required');
   }

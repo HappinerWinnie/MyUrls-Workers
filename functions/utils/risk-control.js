@@ -252,7 +252,7 @@ function hasModernBrowserFeatures(modernBrowserFeatures) {
  * 增强的浏览器检测
  */
 function detectBrowserType(fingerprintData) {
-  const { userAgent, browserFeatures, screenResolution, fonts, plugins } = fingerprintData;
+  const { userAgent, browserFeatures = {}, screenResolution, fonts, plugins } = fingerprintData;
   const ua = userAgent.toLowerCase();
   
   // 检测Chrome
@@ -346,7 +346,7 @@ function detectBrowserType(fingerprintData) {
 function calculateBrowserConfidence(browserType, fingerprintData) {
   let confidence = 0.5; // 基础置信度
   
-  const { userAgent, browserFeatures, screenResolution, fonts, plugins } = fingerprintData;
+  const { userAgent, browserFeatures = {}, screenResolution, fonts, plugins } = fingerprintData;
   
   // User-Agent匹配度
   if (userAgent && userAgent.length > 10) {

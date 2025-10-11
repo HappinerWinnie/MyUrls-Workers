@@ -170,8 +170,10 @@ export async function onRequest(context) {
                         <p class="mt-2">暂无访问记录</p>
                     </div>
 
-                    <!-- 桌面端表格 -->
-                    <div v-else class="hidden md:block overflow-x-auto">
+                    <!-- 有数据时的显示 -->
+                    <div v-else>
+                        <!-- 桌面端表格 -->
+                        <div class="hidden md:block overflow-x-auto">
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
@@ -210,8 +212,8 @@ export async function onRequest(context) {
                         </table>
                     </div>
 
-                    <!-- 移动端卡片布局 -->
-                    <div v-else-if="logs.length > 0" class="md:hidden space-y-4">
+                        <!-- 移动端卡片布局 -->
+                        <div class="md:hidden space-y-4">
                         <div v-for="log in logs" :key="log.id" class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm fade-in">
                             <div class="flex justify-between items-start mb-3">
                                 <div class="flex-1 min-w-0">
@@ -239,6 +241,7 @@ export async function onRequest(context) {
                                     <span class="font-medium">设备:</span> {{ log.device_id ? log.device_id.substring(0, 8) + '...' : '未知' }}
                                 </div>
                             </div>
+                        </div>
                         </div>
                     </div>
 

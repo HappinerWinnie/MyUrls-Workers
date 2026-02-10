@@ -1163,9 +1163,10 @@ function getAdminPage() {
                         let filename = 'links_export_' + new Date().toISOString().slice(0, 19).replace(/[:-]/g, '') + '.' + format;
                         
                         if (contentDisposition) {
-                            const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\x02|[^;\n]*)/);
-                            if (filenameMatch && filenameMatch[1]) {
-                                filename = filenameMatch[1].replace(/['"]/g, '');
+                            const filenameMatch = contentDisposition.match(/filename[^;=\n]*=(?:"([^"]*)"|'([^']*)'|([^;\n]*))/);
+                            if (filenameMatch) {
+                                filename = filenameMatch[1] || filenameMatch[2] || filenameMatch[3] || filename;
+                                filename = filename.replace(/['"]/g, '');
                             }
                         }
                         

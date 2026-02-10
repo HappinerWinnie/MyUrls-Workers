@@ -1163,10 +1163,18 @@ function getAdminPage() {
                         let filename = 'links_export_' + new Date().toISOString().slice(0, 19).replace(/[:-]/g, '') + '.' + format;
                         
                         if (contentDisposition) {
-                            const filenameMatch = contentDisposition.match(/filename[^;=\n]*=(?:"([^"]*)"|'([^']*)'|([^;\n]*))/);
-                            if (filenameMatch) {
-                                filename = filenameMatch[1] || filenameMatch[2] || filenameMatch[3] || filename;
-                                filename = filename.replace(/['"]/g, '');
+                            // 简化的文件名提取，避免复杂的正则表达式
+                            const parts = contentDisposition.split(';');
+                            for (const part of parts) {
+                                if (part.trim().startsWith('filename=')) {
+                                    let extractedFilename = part.substring(9).trim();
+                                    // 移除引号
+                                    extractedFilename = extractedFilename.replace(/^["']|["']$/g, '');
+                                    if (extractedFilename) {
+                                        filename = extractedFilename;
+                                    }
+                                    break;
+                                }
                             }
                         }
                         

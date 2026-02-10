@@ -813,7 +813,90 @@ function getAdminPage() {
                                 <p class="text-xs text-gray-500 mt-1">设置文件下载行为和文件名</p>
                             </div>
 
-                            <!-- 其他自定义响应头 -->
+                        <!-- 风控配置 -->
+                        <div class="border-t pt-4">
+                            <h4 class="text-md font-medium text-gray-900 mb-4">风控配置</h4>
+                            
+                            <!-- 访问次数限制 -->
+                            <div class="mb-6">
+                                <h5 class="text-sm font-medium text-gray-700 mb-3">访问次数限制</h5>
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">总次数 (-1=无限制)</label>
+                                        <input v-model.number="editingLink.riskControl.visitLimits.total" type="number" min="-1"
+                                               class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">同设备 (-1=无限制)</label>
+                                        <input v-model.number="editingLink.riskControl.visitLimits.device" type="number" min="-1"
+                                               class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">同IP (-1=无限制)</label>
+                                        <input v-model.number="editingLink.riskControl.visitLimits.ip" type="number" min="-1"
+                                               class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">同设备+IP (-1=无限制)</label>
+                                        <input v-model.number="editingLink.riskControl.visitLimits.deviceIp" type="number" min="-1"
+                                               class="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500">
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-2">设置访问次数限制，防止恶意访问。同IP限制是您图片中标记的功能。</p>
+                            </div>
+
+                            <!-- User-Agent过滤 -->
+                            <div class="mb-6">
+                                <div class="flex items-center mb-3">
+                                    <input type="checkbox" v-model="editingLink.riskControl.uaFilter.enabled" 
+                                           class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                                    <label class="text-sm font-medium text-gray-700">启用User-Agent过滤</label>
+                                </div>
+                                <div v-if="editingLink.riskControl.uaFilter.enabled" class="space-y-3">
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">黑名单（每行一个）</label>
+                                        <textarea v-model="editingLink.riskControl.uaFilter.blacklist.join('\n')" 
+                                                  @input="editingLink.riskControl.uaFilter.blacklist = $event.target.value.split('\n').filter(s => s.trim())"
+                                                  rows="3" placeholder="bot&#10;crawler&#10;spider"
+                                                  class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">白名单（每行一个）</label>
+                                        <textarea v-model="editingLink.riskControl.uaFilter.whitelist.join('\n')" 
+                                                  @input="editingLink.riskControl.uaFilter.whitelist = $event.target.value.split('\n').filter(s => s.trim())"
+                                                  rows="3" placeholder="Chrome&#10;Firefox&#10;Safari"
+                                                  class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 国家地区限制 -->
+                            <div class="mb-6">
+                                <div class="flex items-center mb-3">
+                                    <input type="checkbox" v-model="editingLink.riskControl.countryRestriction.enabled" 
+                                           class="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                                    <label class="text-sm font-medium text-gray-700">启用国家地区限制</label>
+                                </div>
+                                <div v-if="editingLink.riskControl.countryRestriction.enabled" class="space-y-3">
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">允许的国家（每行一个国家代码）</label>
+                                        <textarea v-model="editingLink.riskControl.countryRestriction.allowed.join('\n')" 
+                                                  @input="editingLink.riskControl.countryRestriction.allowed = $event.target.value.split('\n').filter(s => s.trim())"
+                                                  rows="3" placeholder="CN&#10;US&#10;JP"
+                                                  class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs text-gray-600 mb-1">禁止的国家（每行一个国家代码）</label>
+                                        <textarea v-model="editingLink.riskControl.countryRestriction.blocked.join('\n')" 
+                                                  @input="editingLink.riskControl.countryRestriction.blocked = $event.target.value.split('\n').filter(s => s.trim())"
+                                                  rows="3" placeholder="RU&#10;KP&#10;IR"
+                                                  class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 其他自定义响应头 -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">其他自定义响应头 (JSON格式)</label>
                                 <textarea v-model="editingLink.customHeadersJson" rows="3" placeholder='{"header-name": "header-value"}'
@@ -1027,11 +1110,51 @@ function getAdminPage() {
                         tagsString: (link.tags || []).join(', '),
                         subscriptionInfo: subscriptionInfo,
                         contentDisposition: contentDisposition,
-                        customHeadersJson: Object.keys(otherHeaders).length > 0 ? JSON.stringify(otherHeaders, null, 2) : ''
+                        customHeadersJson: Object.keys(otherHeaders).length > 0 ? JSON.stringify(otherHeaders, null, 2) : '',
+                        // 添加风控配置
+                        riskControl: {
+                            visitLimits: {
+                                total: -1,        // 总次数限制，-1表示无限制
+                                device: -1,       // 同设备限制
+                                ip: -1,          // 同IP限制
+                                deviceIp: -1      // 同设备+IP限制
+                            },
+                            uaFilter: {
+                                enabled: false,
+                                whitelist: [],
+                                blacklist: []
+                            },
+                            riskAlert: {
+                                enabled: false,
+                                webhook: '',
+                                email: ''
+                            },
+                            countryRestriction: {
+                                enabled: false,
+                                allowed: [],
+                                blocked: []
+                            }
+                        }
                     };
                     this.originalMaxVisits = link.max_visits;
                     this.originalShortKey = link.short_key;
+                    
+                    // 加载现有的风控配置
+                    this.loadRiskControlConfig(link.id);
+                    
                     this.showEditModal = true;
+                },
+
+                async loadRiskControlConfig(linkId) {
+                    try {
+                        const response = await axios.get('/api/links/' + this.editingLink.shortKey + '?risk-control=true');
+                        if (response.data.success) {
+                            this.editingLink.riskControl = response.data.data;
+                        }
+                    } catch (error) {
+                        console.error('Failed to load risk control config:', error);
+                        // 如果加载失败，使用默认配置
+                    }
                 },
 
                 closeEditModal() {
@@ -1065,7 +1188,9 @@ function getAdminPage() {
                             isActive: this.editingLink.isActive,
                             tags: this.editingLink.tagsString ? this.editingLink.tagsString.split(',').map(tag => tag.trim()).filter(tag => tag) : [],
                             subscriptionInfo: this.editingLink.subscriptionInfo,
-                            contentDisposition: this.editingLink.contentDisposition
+                            contentDisposition: this.editingLink.contentDisposition,
+                            // 添加风控配置
+                            riskControl: this.editingLink.riskControl
                         };
 
                         // 处理其他自定义响应头

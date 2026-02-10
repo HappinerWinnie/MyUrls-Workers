@@ -112,11 +112,13 @@ export async function onRequest(context) {
   }
 
   // 检查风控访问限制
-  const visitLimits = JSON.parse(linkData.visit_limits || '{}');
-  const visitLimitsCheck = await checkVisitLimits(linkData, deviceInfo, ipAddress, visitLimits, db);
-  if (!visitLimitsCheck.allowed) {
-    const violation = visitLimitsCheck.violations[0];
-    return forbiddenResponse(violation.message);
+  const riskControlConfig = await linkDB.getRiskControlConfig(linkData.id);
+  if (riskControlConfig && riskControlConfig.visitLimits) {
+    const visitLimitsCheck = await checkVisitLimits(linkData, deviceInfo, ipAddress, riskControlConfig.visitLimits, db);
+    if (!visitLimitsCheck.allowed) {
+      const violation = visitLimitsCheck.violations[0];
+      return forbiddenResponse(violation.message);
+    }
   }
 
   // 检查访问次数限制（根据模式）

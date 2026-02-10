@@ -728,65 +728,65 @@ function detectProxyTool(userAgent) {
 }
 
 /**
- * 访问限制检查
+ * 访问限制检查 - 使用D1数据库版本
  */
-export async function checkVisitLimits(linkData, deviceInfo, ipAddress, kv) {
-  const limits = linkData.visitLimits || {};
+export async function checkVisitLimits(linkData, deviceInfo, ipAddress, visitLimits, db) {
   const violations = [];
+  const currentTime = getCurrentTimestamp();
+  const timeWindow = 24 * 60 * 60 * 1000; // 24小时窗口
+  
+  // 获取24小时内的访问记录
+  const recentVisits = await getRecentVisitsFromDB(db, linkData.id, timeWindow);
   
   // 检查总访问次数限制
-  if (limits.total && linkData.totalVisits >= limits.total) {
+  if (visitLimits.total && visitLimits.total > 0 && recentVisits.length >= visitLimits.total) {
     violations.push({
       type: 'total_limit',
-      message: '已达访问次数限制',
-      limit: limits.total,
-      current: linkData.totalVisits
+      message: `总访问次数已达上限 (${visitLimits.total}次)`,
+      limit: visitLimits.total,
+      current: recentVisits.length
     });
   }
   
   // 检查设备访问次数限制
-  if (limits.perDevice) {
-    const deviceKey = `device:${linkData.shortKey}:${deviceInfo.deviceId}`;
-    const deviceVisits = await getDeviceVisits(kv, deviceKey);
-    
-    if (deviceVisits >= limits.perDevice) {
+  if (visitLimits.device && visitLimits.device > 0) {
+    const deviceVisits = recentVisits.filter(visit => visit.device_fingerprint === deviceInfo.deviceId);
+    if (deviceVisits.length >= visitLimits.device) {
       violations.push({
         type: 'device_limit',
-        message: '已达访问次数限制',
-        limit: limits.perDevice,
-        current: deviceVisits,
+        message: `设备访问次数已达上限 (${visitLimits.device}次)`,
+        limit: visitLimits.device,
+        current: deviceVisits.length,
         deviceId: deviceInfo.deviceId
       });
     }
   }
   
   // 检查IP访问次数限制
-  if (limits.perIP) {
-    const ipKey = `ip:${linkData.shortKey}:${ipAddress}`;
-    const ipVisits = await getIPVisits(kv, ipKey);
-    
-    if (ipVisits >= limits.perIP) {
+  if (visitLimits.ip && visitLimits.ip > 0) {
+    const ipVisits = recentVisits.filter(visit => visit.ip === ipAddress);
+    if (ipVisits.length >= visitLimits.ip) {
       violations.push({
         type: 'ip_limit',
-        message: '已达访问次数限制',
-        limit: limits.perIP,
-        current: ipVisits,
+        message: `IP访问次数已达上限 (${visitLimits.ip}次)`,
+        limit: visitLimits.ip,
+        current: ipVisits.length,
         ip: ipAddress
       });
     }
   }
   
   // 检查设备+IP组合限制
-  if (limits.perDeviceIP) {
-    const deviceIPKey = `deviceip:${linkData.shortKey}:${deviceInfo.deviceId}:${ipAddress}`;
-    const deviceIPVisits = await getDeviceIPVisits(kv, deviceIPKey);
-    
-    if (deviceIPVisits >= limits.perDeviceIP) {
+  if (visitLimits.deviceIp && visitLimits.deviceIp > 0) {
+    const deviceIPVisits = recentVisits.filter(visit => 
+      visit.device_fingerprint === deviceInfo.deviceId && visit.ip === ipAddress
+    );
+    if (deviceIPVisits.length >= visitLimits.deviceIp) {
       violations.push({
         type: 'device_ip_limit',
-        message: '已达访问次数限制',
-        limit: limits.perDeviceIP,
-        current: deviceIPVisits,
+        message: `设备+IP访问次数已达上限 (${visitLimits.deviceIp}次)`,
+        limit: visitLimits.deviceIp,
+        current: deviceIPVisits.length,
         deviceId: deviceInfo.deviceId,
         ip: ipAddress
       });
@@ -797,6 +797,28 @@ export async function checkVisitLimits(linkData, deviceInfo, ipAddress, kv) {
     allowed: violations.length === 0,
     violations
   };
+}
+
+/**
+ * 从D1数据库获取最近的访问记录
+ */
+async function getRecentVisitsFromDB(db, linkId, timeWindowMs) {
+  const cutoffTime = new Date(Date.now() - timeWindowMs).toISOString();
+  
+  const sql = `
+    SELECT ip_address as ip, device_id as device_fingerprint, visit_timestamp as visited_at 
+    FROM access_logs 
+    WHERE link_id = ? AND visit_timestamp >= ?
+    ORDER BY visit_timestamp DESC
+  `;
+  
+  try {
+    const result = await db.prepare(sql).bind(linkId, cutoffTime).all();
+    return result.results || [];
+  } catch (error) {
+    console.error('Error getting recent visits from DB:', error);
+    return [];
+  }
 }
 
 /**

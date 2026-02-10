@@ -337,6 +337,91 @@ export class LinkDB extends Database {
   }
 
   /**
+   * 更新风控配置
+   */
+  async updateRiskControlConfig(linkId, riskControl) {
+    const sql = `
+      UPDATE risk_control_configs 
+      SET visit_limits = ?, ua_filter = ?, risk_alert = ?, country_restriction = ?
+      WHERE link_id = ?
+    `;
+    
+    const params = [
+      JSON.stringify(riskControl.visitLimits || {}),
+      JSON.stringify(riskControl.uaFilter || {}),
+      JSON.stringify(riskControl.riskAlert || {}),
+      JSON.stringify(riskControl.countryRestriction || {}),
+      linkId
+    ];
+
+    const result = await this.execute(sql, params);
+    
+    // 如果没有更新任何行，说明风控配置不存在，需要创建
+    if (result.changes === 0) {
+      await this.createRiskControlConfig(linkId, riskControl);
+    }
+    
+    return result;
+  }
+
+  /**
+   * 获取风控配置
+   */
+  async getRiskControlConfig(linkId) {
+    const sql = 'SELECT * FROM risk_control_configs WHERE link_id = ?';
+    const result = await this.execute(sql, [linkId]);
+    
+    if (result.results && result.results.length > 0) {
+      const config = result.results[0];
+      return {
+        visitLimits: JSON.parse(config.visit_limits || '{}'),
+        uaFilter: JSON.parse(config.ua_filter || '{}'),
+        riskAlert: JSON.parse(config.risk_alert || '{}'),
+        countryRestriction: JSON.parse(config.country_restriction || '{}')
+      };
+    }
+    
+    return null;
+  }
+
+  /**
+   * 记录访问日志
+   */
+  async recordAccessLog(logData) {
+    const sql = `
+      INSERT INTO access_logs (link_id, ip, user_agent, referer, device_fingerprint, visited_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `;
+    
+    const params = [
+      logData.link_id,
+      logData.ip,
+      logData.user_agent,
+      logData.referer,
+      logData.device_fingerprint,
+      logData.visited_at
+    ];
+
+    return await this.execute(sql, params);
+  }
+
+  /**
+   * 获取访问日志
+   */
+  async getAccessLogs(linkId, limit = 100, offset = 0) {
+    const sql = `
+      SELECT ip, user_agent, referer, device_fingerprint, visited_at
+      FROM access_logs 
+      WHERE link_id = ?
+      ORDER BY visited_at DESC
+      LIMIT ? OFFSET ?
+    `;
+    
+    const result = await this.execute(sql, [linkId, limit, offset]);
+    return result.results || [];
+  }
+
+  /**
    * 创建自定义响应头
    */
   async createCustomHeaders(linkId, customHeaders) {

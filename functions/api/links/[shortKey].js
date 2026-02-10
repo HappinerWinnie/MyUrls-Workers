@@ -26,6 +26,7 @@ export async function onRequest(context) {
   const { request, env, params } = context;
   const db = env.DB;
   const shortKey = params.shortKey;
+  const url = new URL(request.url);
 
   // 处理OPTIONS预检请求
   if (request.method === 'OPTIONS') {
@@ -54,6 +55,9 @@ export async function onRequest(context) {
 
   switch (request.method) {
     case 'GET':
+      if (url.searchParams.get('risk-control') === 'true') {
+        return await getRiskControlConfig(linkDB, linkData.id);
+      }
       return await getLinkDetails(linkData);
     case 'PUT':
       return await updateLink(request, linkDB, linkData);
@@ -103,6 +107,45 @@ async function getLinkDetails(linkData) {
   } catch (error) {
     console.error('Get link details error:', error);
     return errorResponse('Failed to get link details', 500, 500);
+  }
+}
+
+/**
+ * 获取风控配置
+ */
+async function getRiskControlConfig(linkDB, linkId) {
+  try {
+    const riskControl = await linkDB.getRiskControlConfig(linkId);
+    
+    // 如果没有风控配置，返回默认配置
+    const defaultConfig = {
+      visitLimits: {
+        total: -1,        // 总次数限制，-1表示无限制
+        device: -1,       // 同设备限制
+        ip: -1,          // 同IP限制
+        deviceIp: -1      // 同设备+IP限制
+      },
+      uaFilter: {
+        enabled: false,
+        whitelist: [],
+        blacklist: []
+      },
+      riskAlert: {
+        enabled: false,
+        webhook: '',
+        email: ''
+      },
+      countryRestriction: {
+        enabled: false,
+        allowed: [],
+        blocked: []
+      }
+    };
+
+    return successResponse(riskControl || defaultConfig);
+  } catch (error) {
+    console.error('Get risk control config error:', error);
+    return errorResponse('Failed to get risk control config', 500, 500);
   }
 }
 
@@ -276,11 +319,32 @@ async function updateLink(request, linkDB, linkData) {
       }
     }
 
+    // 处理风控配置更新
+    if (updateData.riskControl !== undefined) {
+      await linkDB.updateRiskControlConfig(linkData.id, updateData.riskControl);
+    }
+
     // 更新时间戳
     linkData.updatedAt = getCurrentTimestamp();
 
+    // 创建只包含数据库字段的对象用于更新
+    const dbUpdateData = {
+      short_key: linkData.shortKey,
+      long_url: linkData.longUrl,
+      title: linkData.title,
+      description: linkData.description,
+      password_hash: linkData.password,
+      max_visits: linkData.maxVisits,
+      current_visits: linkData.currentVisits,
+      expires_at: linkData.expiresAt,
+      access_mode: linkData.accessMode,
+      custom_headers: JSON.stringify(linkData.customHeaders || {}),
+      is_active: linkData.isActive ? 1 : 0,
+      updated_at: linkData.updatedAt
+    };
+
     // 保存更新后的数据
-    await linkDB.updateLink(linkData.id, linkData);
+    await linkDB.updateLink(linkData.id, dbUpdateData);
 
     return successResponse({
       id: linkData.id,

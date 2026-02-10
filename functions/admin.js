@@ -346,6 +346,29 @@ function getAdminPage() {
                             <button @click="loadLinks" class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
                                 刷新
                             </button>
+                            <div class="relative">
+                                <button @click="showExportMenu = !showExportMenu" :disabled="exporting"
+                                        class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 flex items-center">
+                                    <svg v-if="exporting" class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    {{ exporting ? '导出中...' : '导出数据' }}
+                                    <svg class="ml-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+                                <div v-if="showExportMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
+                                    <div class="py-1">
+                                        <button @click="exportLinks('csv')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                            导出为 CSV
+                                        </button>
+                                        <button @click="exportLinks('json')" class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                            导出为 JSON
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                             <button @click="showRiskControl = !showRiskControl" class="px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
                                 {{ showRiskControl ? '隐藏风控' : '风控管理' }}
                             </button>
@@ -869,14 +892,36 @@ function getAdminPage() {
                         duration: ''
                     },
                     blockingDevice: false,
-                    blockingIP: false
+                    blockingIP: false,
+                    showExportMenu: false,
+                    exporting: false
                 }
             },
             mounted() {
                 this.loadLinks();
                 this.loadBlockedList();
+                
+                // 添加全局点击事件监听器来关闭导出菜单
+                document.addEventListener('click', this.handleClickOutside);
+            },
+            
+            beforeUnmount() {
+                // 清理事件监听器
+                document.removeEventListener('click', this.handleClickOutside);
             },
             methods: {
+                handleClickOutside(event) {
+                    // 如果点击的不是导出按钮或导出菜单内部，则关闭菜单
+                    const exportButton = event.target.closest('button');
+                    const exportMenu = event.target.closest('.absolute');
+                    
+                    if (!exportButton || !exportButton.getAttribute('@click')?.includes('showExportMenu')) {
+                        if (!exportMenu || !exportMenu.querySelector('button[@click*="exportLinks"]')) {
+                            this.showExportMenu = false;
+                        }
+                    }
+                },
+                
                 async loadLinks(page = 1, limit = 20) {
                     this.loading = true;
                     const startTime = Date.now();
@@ -1081,6 +1126,56 @@ function getAdminPage() {
                     } catch (error) {
                         console.error('Clear cache error:', error);
                         alert('清除缓存失败');
+                    }
+                },
+
+                async exportLinks(format) {
+                    this.exporting = true;
+                    this.showExportMenu = false;
+                    
+                    try {
+                        const params = new URLSearchParams({
+                            format: format,
+                            pageSize: '1000',
+                            search: this.searchQuery || ''
+                        });
+
+                        const response = await axios.get('/api/links/export?' + params, {
+                            responseType: 'blob'
+                        });
+
+                        // 创建下载链接
+                        const blob = new Blob([response.data], {
+                            type: format === 'csv' ? 'text/csv;charset=utf-8' : 'application/json'
+                        });
+                        
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        
+                        // 从响应头获取文件名，如果没有则生成一个
+                        const contentDisposition = response.headers['content-disposition'];
+                        let filename = 'links_export_' + new Date().toISOString().slice(0, 19).replace(/[:-]/g, '') + '.' + format;
+                        
+                        if (contentDisposition) {
+                            const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\x02|[^;\n]*)/);
+                            if (filenameMatch && filenameMatch[1]) {
+                                filename = filenameMatch[1].replace(/['"]/g, '');
+                            }
+                        }
+                        
+                        link.download = filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(url);
+
+                        console.log('Export completed: ' + format + ' format');
+                    } catch (error) {
+                        console.error('Export error:', error);
+                        alert('导出失败，请重试');
+                    } finally {
+                        this.exporting = false;
                     }
                 },
                 

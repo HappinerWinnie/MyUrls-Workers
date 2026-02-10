@@ -911,14 +911,19 @@ function getAdminPage() {
             },
             methods: {
                 handleClickOutside(event) {
-                    // 如果点击的不是导出按钮或导出菜单内部，则关闭菜单
-                    const exportButton = event.target.closest('button');
-                    const exportMenu = event.target.closest('.absolute');
+                    // 简单的点击外部检测
+                    const target = event.target;
+                    const exportButton = target.closest('button');
                     
-                    if (!exportButton || !exportButton.getAttribute('@click')?.includes('showExportMenu')) {
-                        if (!exportMenu || !exportMenu.querySelector('button[@click*="exportLinks"]')) {
-                            this.showExportMenu = false;
-                        }
+                    // 如果点击的是导出按钮，不关闭菜单
+                    if (exportButton && exportButton.textContent && exportButton.textContent.includes('导出数据')) {
+                        return;
+                    }
+                    
+                    // 如果点击的不是导出菜单内部，关闭菜单
+                    const exportMenu = target.closest('.absolute');
+                    if (!exportMenu) {
+                        this.showExportMenu = false;
                     }
                 },
                 

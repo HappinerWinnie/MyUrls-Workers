@@ -373,8 +373,24 @@ export class LinkDB extends Database {
     
     if (result.results && result.results.length > 0) {
       const config = result.results[0];
+      const visitLimits = JSON.parse(config.visit_limits || '{}');
+      
+      // 字段名转换：perIP -> ip，perDevice -> device，perDeviceIP -> deviceIp
+      if (visitLimits.perIP !== undefined) {
+        visitLimits.ip = visitLimits.perIP;
+        delete visitLimits.perIP;
+      }
+      if (visitLimits.perDevice !== undefined) {
+        visitLimits.device = visitLimits.perDevice;
+        delete visitLimits.perDevice;
+      }
+      if (visitLimits.perDeviceIP !== undefined) {
+        visitLimits.deviceIp = visitLimits.perDeviceIP;
+        delete visitLimits.perDeviceIP;
+      }
+      
       return {
-        visitLimits: JSON.parse(config.visit_limits || '{}'),
+        visitLimits: visitLimits,
         uaFilter: JSON.parse(config.ua_filter || '{}'),
         riskAlert: JSON.parse(config.risk_alert || '{}'),
         countryRestriction: JSON.parse(config.country_restriction || '{}')

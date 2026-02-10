@@ -283,7 +283,7 @@
                   <div>
                     <label class="block text-white text-xs mb-1 text-left">同设备</label>
                     <input
-                      v-model="visitLimits.perDevice"
+                      v-model="visitLimits.device"
                       type="number"
                       min="0"
                       placeholder="无限制"
@@ -293,7 +293,7 @@
                   <div>
                     <label class="block text-white text-xs mb-1 text-left">同IP</label>
                     <input
-                      v-model="visitLimits.perIP"
+                      v-model="visitLimits.ip"
                       type="number"
                       min="0"
                       placeholder="无限制"
@@ -303,7 +303,7 @@
                   <div>
                     <label class="block text-white text-xs mb-1 text-left">同设备+IP</label>
                     <input
-                      v-model="visitLimits.perDeviceIP"
+                      v-model="visitLimits.deviceIp"
                       type="number"
                       min="0"
                       placeholder="无限制"
@@ -702,9 +702,9 @@
           },
           visitLimits: {
             total: '',
-            perDevice: '',
-            perIP: '',
-            perDeviceIP: ''
+            device: '',
+            ip: '',
+            deviceIp: ''
           },
           uaFilter: {
             blockBrowsers: false,
@@ -824,9 +824,9 @@
         // 处理风控配置
         const visitLimits = {};
         if (this.visitLimits.total) visitLimits.total = parseInt(this.visitLimits.total);
-        if (this.visitLimits.perDevice) visitLimits.perDevice = parseInt(this.visitLimits.perDevice);
-        if (this.visitLimits.perIP) visitLimits.perIP = parseInt(this.visitLimits.perIP);
-        if (this.visitLimits.perDeviceIP) visitLimits.perDeviceIP = parseInt(this.visitLimits.perDeviceIP);
+        if (this.visitLimits.device) visitLimits.device = parseInt(this.visitLimits.device);
+        if (this.visitLimits.ip) visitLimits.ip = parseInt(this.visitLimits.ip);
+        if (this.visitLimits.deviceIp) visitLimits.deviceIp = parseInt(this.visitLimits.deviceIp);
 
         const uaFilter = {
           blockBrowsers: this.uaFilter.blockBrowsers,
@@ -958,9 +958,9 @@
           };
           this.visitLimits = {
             total: '',
-            perDevice: '',
-            perIP: '',
-            perDeviceIP: ''
+            device: '',
+            ip: '',
+            deviceIp: ''
           };
           this.uaFilter = {
             blockBrowsers: true,

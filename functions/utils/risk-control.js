@@ -757,50 +757,53 @@ export async function checkVisitLimits(linkData, deviceInfo, ipAddress, visitLim
     });
   }
   
-  // 检查设备访问次数限制
-  if (visitLimits.device && visitLimits.device > 0) {
+  // 检查设备访问次数限制 - 兼容两种字段名
+  const deviceLimit = visitLimits.device || visitLimits.perDevice;
+  if (deviceLimit && deviceLimit > 0) {
     const deviceVisits = recentVisits.filter(visit => visit.device_fingerprint === deviceInfo.deviceId);
-    console.log('设备访问次数:', deviceVisits.length, '限制:', visitLimits.device);
-    if (deviceVisits.length >= visitLimits.device) {
+    console.log('设备访问次数:', deviceVisits.length, '限制:', deviceLimit);
+    if (deviceVisits.length >= deviceLimit) {
       console.log('设备访问次数超限');
       violations.push({
         type: 'device_limit',
-        message: `设备访问次数已达上限 (${visitLimits.device}次)`,
-        limit: visitLimits.device,
+        message: `设备访问次数已达上限 (${deviceLimit}次)`,
+        limit: deviceLimit,
         current: deviceVisits.length,
         deviceId: deviceInfo.deviceId
       });
     }
   }
   
-  // 检查IP访问次数限制
-  if (visitLimits.ip && visitLimits.ip > 0) {
+  // 检查IP访问次数限制 - 兼容两种字段名
+  const ipLimit = visitLimits.ip || visitLimits.perIP;
+  if (ipLimit && ipLimit > 0) {
     const ipVisits = recentVisits.filter(visit => visit.ip === ipAddress);
-    console.log('IP访问次数:', ipVisits.length, '限制:', visitLimits.ip);
+    console.log('IP访问次数:', ipVisits.length, '限制:', ipLimit);
     console.log('IP访问记录详情:', JSON.stringify(ipVisits, null, 2));
-    if (ipVisits.length >= visitLimits.ip) {
+    if (ipVisits.length >= ipLimit) {
       console.log('IP访问次数超限 - 应该阻止访问');
       violations.push({
         type: 'ip_limit',
-        message: `IP访问次数已达上限 (${visitLimits.ip}次)`,
-        limit: visitLimits.ip,
+        message: `IP访问次数已达上限 (${ipLimit}次)`,
+        limit: ipLimit,
         current: ipVisits.length,
         ip: ipAddress
       });
     }
   }
   
-  // 检查设备+IP组合限制
-  if (visitLimits.deviceIp && visitLimits.deviceIp > 0) {
+  // 检查设备+IP组合限制 - 兼容两种字段名
+  const deviceIpLimit = visitLimits.deviceIp || visitLimits.perDeviceIP;
+  if (deviceIpLimit && deviceIpLimit > 0) {
     const deviceIPVisits = recentVisits.filter(visit => 
       visit.device_fingerprint === deviceInfo.deviceId && visit.ip === ipAddress
     );
-    console.log('设备+IP访问次数:', deviceIPVisits.length, '限制:', visitLimits.deviceIp);
-    if (deviceIPVisits.length >= visitLimits.deviceIp) {
+    console.log('设备+IP访问次数:', deviceIPVisits.length, '限制:', deviceIpLimit);
+    if (deviceIPVisits.length >= deviceIpLimit) {
       violations.push({
         type: 'device_ip_limit',
-        message: `设备+IP访问次数已达上限 (${visitLimits.deviceIp}次)`,
-        limit: visitLimits.deviceIp,
+        message: `设备+IP访问次数已达上限 (${deviceIpLimit}次)`,
+        limit: deviceIpLimit,
         current: deviceIPVisits.length,
         deviceId: deviceInfo.deviceId,
         ip: ipAddress

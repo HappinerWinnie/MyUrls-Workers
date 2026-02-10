@@ -731,15 +731,24 @@ function detectProxyTool(userAgent) {
  * 访问限制检查 - 使用D1数据库版本
  */
 export async function checkVisitLimits(linkData, deviceInfo, ipAddress, visitLimits, db) {
+  console.log('--- checkVisitLimits 开始 ---');
+  console.log('链接ID:', linkData.id);
+  console.log('IP地址:', ipAddress);
+  console.log('设备ID:', deviceInfo.deviceId);
+  console.log('访问限制配置:', JSON.stringify(visitLimits, null, 2));
+  
   const violations = [];
   const currentTime = getCurrentTimestamp();
   const timeWindow = 24 * 60 * 60 * 1000; // 24小时窗口
   
   // 获取24小时内的访问记录
   const recentVisits = await getRecentVisitsFromDB(db, linkData.id, timeWindow);
+  console.log('24小时内访问记录数量:', recentVisits.length);
+  console.log('访问记录:', JSON.stringify(recentVisits.slice(0, 5), null, 2)); // 只显示前5条
   
   // 检查总访问次数限制
   if (visitLimits.total && visitLimits.total > 0 && recentVisits.length >= visitLimits.total) {
+    console.log('总访问次数超限:', recentVisits.length, '>=', visitLimits.total);
     violations.push({
       type: 'total_limit',
       message: `总访问次数已达上限 (${visitLimits.total}次)`,
@@ -751,7 +760,9 @@ export async function checkVisitLimits(linkData, deviceInfo, ipAddress, visitLim
   // 检查设备访问次数限制
   if (visitLimits.device && visitLimits.device > 0) {
     const deviceVisits = recentVisits.filter(visit => visit.device_fingerprint === deviceInfo.deviceId);
+    console.log('设备访问次数:', deviceVisits.length, '限制:', visitLimits.device);
     if (deviceVisits.length >= visitLimits.device) {
+      console.log('设备访问次数超限');
       violations.push({
         type: 'device_limit',
         message: `设备访问次数已达上限 (${visitLimits.device}次)`,
@@ -765,7 +776,10 @@ export async function checkVisitLimits(linkData, deviceInfo, ipAddress, visitLim
   // 检查IP访问次数限制
   if (visitLimits.ip && visitLimits.ip > 0) {
     const ipVisits = recentVisits.filter(visit => visit.ip === ipAddress);
+    console.log('IP访问次数:', ipVisits.length, '限制:', visitLimits.ip);
+    console.log('IP访问记录详情:', JSON.stringify(ipVisits, null, 2));
     if (ipVisits.length >= visitLimits.ip) {
+      console.log('IP访问次数超限 - 应该阻止访问');
       violations.push({
         type: 'ip_limit',
         message: `IP访问次数已达上限 (${visitLimits.ip}次)`,
@@ -781,6 +795,7 @@ export async function checkVisitLimits(linkData, deviceInfo, ipAddress, visitLim
     const deviceIPVisits = recentVisits.filter(visit => 
       visit.device_fingerprint === deviceInfo.deviceId && visit.ip === ipAddress
     );
+    console.log('设备+IP访问次数:', deviceIPVisits.length, '限制:', visitLimits.deviceIp);
     if (deviceIPVisits.length >= visitLimits.deviceIp) {
       violations.push({
         type: 'device_ip_limit',
@@ -793,10 +808,15 @@ export async function checkVisitLimits(linkData, deviceInfo, ipAddress, visitLim
     }
   }
   
-  return {
+  const result = {
     allowed: violations.length === 0,
     violations
   };
+  
+  console.log('检查结果:', JSON.stringify(result, null, 2));
+  console.log('--- checkVisitLimits 结束 ---');
+  
+  return result;
 }
 
 /**

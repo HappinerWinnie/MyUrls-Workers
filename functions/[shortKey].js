@@ -112,14 +112,28 @@ export async function onRequest(context) {
   }
 
   // 检查风控访问限制
+  console.log('=== 风控检查开始 ===');
+  console.log('链接ID:', linkData.id);
+  console.log('IP地址:', ipAddress);
+  console.log('设备ID:', deviceInfo.deviceId);
+  
   const riskControlConfig = await linkDB.getRiskControlConfig(linkData.id);
+  console.log('风控配置:', JSON.stringify(riskControlConfig, null, 2));
+  
   if (riskControlConfig && riskControlConfig.visitLimits) {
+    console.log('访问限制配置:', JSON.stringify(riskControlConfig.visitLimits, null, 2));
     const visitLimitsCheck = await checkVisitLimits(linkData, deviceInfo, ipAddress, riskControlConfig.visitLimits, db);
+    console.log('访问限制检查结果:', JSON.stringify(visitLimitsCheck, null, 2));
+    
     if (!visitLimitsCheck.allowed) {
       const violation = visitLimitsCheck.violations[0];
+      console.log('访问被拒绝:', violation.message);
       return forbiddenResponse(violation.message);
     }
+  } else {
+    console.log('没有找到风控配置或访问限制');
   }
+  console.log('=== 风控检查结束 ===');
 
   // 检查访问次数限制（根据模式）
   if (linkData.visit_limit_mode === 'total' && linkData.max_visits > 0 && linkData.current_visits >= linkData.max_visits) {

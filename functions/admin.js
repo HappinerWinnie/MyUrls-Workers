@@ -856,13 +856,13 @@ function getAdminPage() {
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">黑名单（每行一个）</label>
                                         <textarea v-model="uaBlacklistText" 
-                                                  rows="3" :placeholder="'bot\ncrawler\nspider'"
+                                                  rows="3" :placeholder="'bot' + String.fromCharCode(10) + 'crawler' + String.fromCharCode(10) + 'spider'"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">白名单（每行一个）</label>
                                         <textarea v-model="uaWhitelistText" 
-                                                  rows="3" :placeholder="'Chrome\nFirefox\nSafari'"
+                                                  rows="3" :placeholder="'Chrome' + String.fromCharCode(10) + 'Firefox' + String.fromCharCode(10) + 'Safari'"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
                                 </div>
@@ -879,13 +879,13 @@ function getAdminPage() {
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">允许的国家（每行一个国家代码）</label>
                                         <textarea v-model="countryAllowedText" 
-                                                  rows="3" :placeholder="'CN\nUS\nJP'"
+                                                  rows="3" :placeholder="'CN' + String.fromCharCode(10) + 'US' + String.fromCharCode(10) + 'JP'"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">禁止的国家（每行一个国家代码）</label>
                                         <textarea v-model="countryBlockedText" 
-                                                  rows="3" :placeholder="'RU\nKP\nIR'"
+                                                  rows="3" :placeholder="'RU' + String.fromCharCode(10) + 'KP' + String.fromCharCode(10) + 'IR'"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
                                 </div>
@@ -980,41 +980,49 @@ function getAdminPage() {
                 // 风控配置计算属性
                 uaBlacklistText: {
                     get() {
-                        return this.editingLink.riskControl?.uaFilter?.blacklist?.join('\n') || '';
+                        const newline = String.fromCharCode(10);
+                        return this.editingLink.riskControl?.uaFilter?.blacklist?.join(newline) || '';
                     },
                     set(value) {
+                        const newline = String.fromCharCode(10);
                         if (this.editingLink.riskControl?.uaFilter) {
-                            this.editingLink.riskControl.uaFilter.blacklist = value.split('\n').filter(s => s.trim());
+                            this.editingLink.riskControl.uaFilter.blacklist = value.split(newline).filter(s => s.trim());
                         }
                     }
                 },
                 uaWhitelistText: {
                     get() {
-                        return this.editingLink.riskControl?.uaFilter?.whitelist?.join('\n') || '';
+                        const newline = String.fromCharCode(10);
+                        return this.editingLink.riskControl?.uaFilter?.whitelist?.join(newline) || '';
                     },
                     set(value) {
+                        const newline = String.fromCharCode(10);
                         if (this.editingLink.riskControl?.uaFilter) {
-                            this.editingLink.riskControl.uaFilter.whitelist = value.split('\n').filter(s => s.trim());
+                            this.editingLink.riskControl.uaFilter.whitelist = value.split(newline).filter(s => s.trim());
                         }
                     }
                 },
                 countryAllowedText: {
                     get() {
-                        return this.editingLink.riskControl?.countryRestriction?.allowed?.join('\n') || '';
+                        const newline = String.fromCharCode(10);
+                        return this.editingLink.riskControl?.countryRestriction?.allowed?.join(newline) || '';
                     },
                     set(value) {
+                        const newline = String.fromCharCode(10);
                         if (this.editingLink.riskControl?.countryRestriction) {
-                            this.editingLink.riskControl.countryRestriction.allowed = value.split('\n').filter(s => s.trim());
+                            this.editingLink.riskControl.countryRestriction.allowed = value.split(newline).filter(s => s.trim());
                         }
                     }
                 },
                 countryBlockedText: {
                     get() {
-                        return this.editingLink.riskControl?.countryRestriction?.blocked?.join('\n') || '';
+                        const newline = String.fromCharCode(10);
+                        return this.editingLink.riskControl?.countryRestriction?.blocked?.join(newline) || '';
                     },
                     set(value) {
+                        const newline = String.fromCharCode(10);
                         if (this.editingLink.riskControl?.countryRestriction) {
-                            this.editingLink.riskControl.countryRestriction.blocked = value.split('\n').filter(s => s.trim());
+                            this.editingLink.riskControl.countryRestriction.blocked = value.split(newline).filter(s => s.trim());
                         }
                     }
                 }

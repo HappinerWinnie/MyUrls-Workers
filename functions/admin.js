@@ -856,14 +856,14 @@ function getAdminPage() {
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">黑名单（每行一个）</label>
                                         <textarea v-model="editingLink.riskControl.uaFilter.blacklist.join('\n')" 
-                                                  @input="editingLink.riskControl.uaFilter.blacklist = $event.target.value.split('\n').filter(s => s.trim())"
+                                                  @input="$event => { editingLink.riskControl.uaFilter.blacklist = $event.target.value.split('\n').filter(s => s.trim()) }"
                                                   rows="3" placeholder="bot&#10;crawler&#10;spider"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">白名单（每行一个）</label>
                                         <textarea v-model="editingLink.riskControl.uaFilter.whitelist.join('\n')" 
-                                                  @input="editingLink.riskControl.uaFilter.whitelist = $event.target.value.split('\n').filter(s => s.trim())"
+                                                  @input="$event => { editingLink.riskControl.uaFilter.whitelist = $event.target.value.split('\n').filter(s => s.trim()) }"
                                                   rows="3" placeholder="Chrome&#10;Firefox&#10;Safari"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
@@ -881,14 +881,14 @@ function getAdminPage() {
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">允许的国家（每行一个国家代码）</label>
                                         <textarea v-model="editingLink.riskControl.countryRestriction.allowed.join('\n')" 
-                                                  @input="editingLink.riskControl.countryRestriction.allowed = $event.target.value.split('\n').filter(s => s.trim())"
+                                                  @input="$event => { editingLink.riskControl.countryRestriction.allowed = $event.target.value.split('\n').filter(s => s.trim()) }"
                                                   rows="3" placeholder="CN&#10;US&#10;JP"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">禁止的国家（每行一个国家代码）</label>
                                         <textarea v-model="editingLink.riskControl.countryRestriction.blocked.join('\n')" 
-                                                  @input="editingLink.riskControl.countryRestriction.blocked = $event.target.value.split('\n').filter(s => s.trim())"
+                                                  @input="$event => { editingLink.riskControl.countryRestriction.blocked = $event.target.value.split('\n').filter(s => s.trim()) }"
                                                   rows="3" placeholder="RU&#10;KP&#10;IR"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>

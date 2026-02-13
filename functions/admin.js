@@ -856,13 +856,13 @@ function getAdminPage() {
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">黑名单（每行一个）</label>
                                         <textarea v-model="uaBlacklistText" 
-                                                  rows="3" placeholder="bot&#10;crawler&#10;spider"
+                                                  rows="3" :placeholder="'bot\ncrawler\nspider'"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">白名单（每行一个）</label>
                                         <textarea v-model="uaWhitelistText" 
-                                                  rows="3" placeholder="Chrome&#10;Firefox&#10;Safari"
+                                                  rows="3" :placeholder="'Chrome\nFirefox\nSafari'"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
                                 </div>
@@ -879,13 +879,13 @@ function getAdminPage() {
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">允许的国家（每行一个国家代码）</label>
                                         <textarea v-model="countryAllowedText" 
-                                                  rows="3" placeholder="CN&#10;US&#10;JP"
+                                                  rows="3" :placeholder="'CN\nUS\nJP'"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">禁止的国家（每行一个国家代码）</label>
                                         <textarea v-model="countryBlockedText" 
-                                                  rows="3" placeholder="RU&#10;KP&#10;IR"
+                                                  rows="3" :placeholder="'RU\nKP\nIR'"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
                                 </div>

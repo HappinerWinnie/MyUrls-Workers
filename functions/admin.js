@@ -855,15 +855,13 @@ function getAdminPage() {
                                 <div v-if="editingLink.riskControl.uaFilter.enabled" class="space-y-3">
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">黑名单（每行一个）</label>
-                                        <textarea v-model="editingLink.riskControl.uaFilter.blacklist.join('\n')" 
-                                                  @input="updateUaBlacklist"
+                                        <textarea v-model="uaBlacklistText" 
                                                   rows="3" placeholder="bot&#10;crawler&#10;spider"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">白名单（每行一个）</label>
-                                        <textarea v-model="editingLink.riskControl.uaFilter.whitelist.join('\n')" 
-                                                  @input="updateUaWhitelist"
+                                        <textarea v-model="uaWhitelistText" 
                                                   rows="3" placeholder="Chrome&#10;Firefox&#10;Safari"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
@@ -880,15 +878,13 @@ function getAdminPage() {
                                 <div v-if="editingLink.riskControl.countryRestriction.enabled" class="space-y-3">
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">允许的国家（每行一个国家代码）</label>
-                                        <textarea v-model="editingLink.riskControl.countryRestriction.allowed.join('\n')" 
-                                                  @input="updateCountryAllowed"
+                                        <textarea v-model="countryAllowedText" 
                                                   rows="3" placeholder="CN&#10;US&#10;JP"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
                                     <div>
                                         <label class="block text-xs text-gray-600 mb-1">禁止的国家（每行一个国家代码）</label>
-                                        <textarea v-model="editingLink.riskControl.countryRestriction.blocked.join('\n')" 
-                                                  @input="updateCountryBlocked"
+                                        <textarea v-model="countryBlockedText" 
                                                   rows="3" placeholder="RU&#10;KP&#10;IR"
                                                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></textarea>
                                     </div>
@@ -980,6 +976,49 @@ function getAdminPage() {
                     exporting: false
                 }
             },
+            computed: {
+                // 风控配置计算属性
+                uaBlacklistText: {
+                    get() {
+                        return this.editingLink.riskControl?.uaFilter?.blacklist?.join('\n') || '';
+                    },
+                    set(value) {
+                        if (this.editingLink.riskControl?.uaFilter) {
+                            this.editingLink.riskControl.uaFilter.blacklist = value.split('\n').filter(s => s.trim());
+                        }
+                    }
+                },
+                uaWhitelistText: {
+                    get() {
+                        return this.editingLink.riskControl?.uaFilter?.whitelist?.join('\n') || '';
+                    },
+                    set(value) {
+                        if (this.editingLink.riskControl?.uaFilter) {
+                            this.editingLink.riskControl.uaFilter.whitelist = value.split('\n').filter(s => s.trim());
+                        }
+                    }
+                },
+                countryAllowedText: {
+                    get() {
+                        return this.editingLink.riskControl?.countryRestriction?.allowed?.join('\n') || '';
+                    },
+                    set(value) {
+                        if (this.editingLink.riskControl?.countryRestriction) {
+                            this.editingLink.riskControl.countryRestriction.allowed = value.split('\n').filter(s => s.trim());
+                        }
+                    }
+                },
+                countryBlockedText: {
+                    get() {
+                        return this.editingLink.riskControl?.countryRestriction?.blocked?.join('\n') || '';
+                    },
+                    set(value) {
+                        if (this.editingLink.riskControl?.countryRestriction) {
+                            this.editingLink.riskControl.countryRestriction.blocked = value.split('\n').filter(s => s.trim());
+                        }
+                    }
+                }
+            },
             errorCaptured(err, vm, info) {
                 console.error('Vue error captured:', err);
                 console.error('Error stack:', err.stack);
@@ -1017,52 +1056,6 @@ function getAdminPage() {
                 document.removeEventListener('click', this.handleClickOutside);
             },
             methods: {
-                // 风控配置textarea更新方法
-                updateUaBlacklist(event) {
-                    try {
-                        console.log('updateUaBlacklist called:', event.target.value);
-                        this.editingLink.riskControl.uaFilter.blacklist = event.target.value.split('\n').filter(s => s.trim());
-                        console.log('updateUaBlacklist result:', this.editingLink.riskControl.uaFilter.blacklist);
-                    } catch (error) {
-                        console.error('updateUaBlacklist error:', error);
-                        console.error('Error stack:', error.stack);
-                        console.error('Current editingLink:', this.editingLink);
-                    }
-                },
-                updateUaWhitelist(event) {
-                    try {
-                        console.log('updateUaWhitelist called:', event.target.value);
-                        this.editingLink.riskControl.uaFilter.whitelist = event.target.value.split('\n').filter(s => s.trim());
-                        console.log('updateUaWhitelist result:', this.editingLink.riskControl.uaFilter.whitelist);
-                    } catch (error) {
-                        console.error('updateUaWhitelist error:', error);
-                        console.error('Error stack:', error.stack);
-                        console.error('Current editingLink:', this.editingLink);
-                    }
-                },
-                updateCountryAllowed(event) {
-                    try {
-                        console.log('updateCountryAllowed called:', event.target.value);
-                        this.editingLink.riskControl.countryRestriction.allowed = event.target.value.split('\n').filter(s => s.trim());
-                        console.log('updateCountryAllowed result:', this.editingLink.riskControl.countryRestriction.allowed);
-                    } catch (error) {
-                        console.error('updateCountryAllowed error:', error);
-                        console.error('Error stack:', error.stack);
-                        console.error('Current editingLink:', this.editingLink);
-                    }
-                },
-                updateCountryBlocked(event) {
-                    try {
-                        console.log('updateCountryBlocked called:', event.target.value);
-                        this.editingLink.riskControl.countryRestriction.blocked = event.target.value.split('\n').filter(s => s.trim());
-                        console.log('updateCountryBlocked result:', this.editingLink.riskControl.countryRestriction.blocked);
-                    } catch (error) {
-                        console.error('updateCountryBlocked error:', error);
-                        console.error('Error stack:', error.stack);
-                        console.error('Current editingLink:', this.editingLink);
-                    }
-                },
-                
                 handleClickOutside(event) {
                     // 简单的点击外部检测
                     const target = event.target;
